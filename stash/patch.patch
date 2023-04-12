@@ -1,0 +1,107 @@
+diff --git a/libcxx/CMakeLists.txt b/libcxx/CMakeLists.txt
+index 3309edd9fc4c..d3ce4bc28079 100644
+--- a/libcxx/CMakeLists.txt
++++ b/libcxx/CMakeLists.txt
+@@ -451,6 +451,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${LIBCXX_LIBRARY_DIR})
+ set(LIBCXX_COMPILE_FLAGS "")
+ set(LIBCXX_LINK_FLAGS "")
+ set(LIBCXX_LIBRARIES "")
++set(LIBCXX_INSTALL_RPATH "")
+ set(LIBCXX_ADDITIONAL_COMPILE_FLAGS "" CACHE STRING
+     "Additional Compile only flags which can be provided in cache")
+ set(LIBCXX_ADDITIONAL_LIBRARIES "" CACHE STRING
+diff --git a/libcxx/src/CMakeLists.txt b/libcxx/src/CMakeLists.txt
+index 9ff2a62e9394..6911bd7cb5ea 100644
+--- a/libcxx/src/CMakeLists.txt
++++ b/libcxx/src/CMakeLists.txt
+@@ -178,10 +178,15 @@ if (APPLE AND LLVM_USE_SANITIZER)
+     set(LIBCXX_SANITIZER_LIBRARY "${LIBCXX_SANITIZER_LIBRARY}" PARENT_SCOPE)
+     message(STATUS "Manually linking compiler-rt library: ${LIBCXX_SANITIZER_LIBRARY}")
+     add_library_flags("${LIBCXX_SANITIZER_LIBRARY}")
+-    add_link_flags("-Wl,-rpath,${LIBDIR}")
++    set(LIBCXX_INSTALL_RPATH "${LIBDIR}")
+   endif()
+ endif()
+ 
++if (UNIX AND NOT APPLE AND NOT ( MATCHES "AIX") AND LIBCXX_ENABLE_SHARED AND LIBCXXABI_USE_LLVM_UNWINDER AND
++        NOT LIBCXXABI_STATICALLY_LINK_UNWINDER_IN_SHARED_LIBRARY AND (TARGET unwind_shared OR HAVE_LIBUNWIND))
++  set(LIBCXX_INSTALL_RPATH "\$ORIGIN")
++endif()
++
+ if (LIBCXX_ENABLE_PARALLEL_ALGORITHMS AND NOT TARGET pstl::ParallelSTL)
+   message(FATAL_ERROR "Could not find ParallelSTL")
+ endif()
+@@ -285,6 +290,11 @@ if (LIBCXX_ENABLE_SHARED)
+     set_target_properties(cxx_shared PROPERTIES
+                           APPEND_STRING PROPERTY LINK_FLAGS " /MANIFEST:NO")
+   endif()
++
++  if(NOT CMAKE_INSTALL_RPATH)
++    set_target_properties(cxx_shared PROPERTIES
++                          INSTALL_RPATH "${LIBCXX_INSTALL_RPATH}")
++  endif()
+ endif()
+ 
+ set(CMAKE_STATIC_LIBRARY_PREFIX "lib")
+diff --git a/libcxxabi/CMakeLists.txt b/libcxxabi/CMakeLists.txt
+index 4dd9f092dbf0..ca02dcd215ea 100644
+--- a/libcxxabi/CMakeLists.txt
++++ b/libcxxabi/CMakeLists.txt
+@@ -232,6 +232,7 @@ set(LIBCXXABI_CXX_FLAGS "")
+ set(LIBCXXABI_COMPILE_FLAGS "")
+ set(LIBCXXABI_LINK_FLAGS "")
+ set(LIBCXXABI_LIBRARIES "")
++set(LIBCXXABI_INSTALL_RPATH "")
+ set(LIBCXXABI_ADDITIONAL_COMPILE_FLAGS "" CACHE STRING
+     "Additional Compile only flags which can be provided in cache")
+ set(LIBCXXABI_ADDITIONAL_LIBRARIES "" CACHE STRING
+diff --git a/libcxxabi/src/CMakeLists.txt b/libcxxabi/src/CMakeLists.txt
+index 58df59a5725a..c2b938ca2e5e 100644
+--- a/libcxxabi/src/CMakeLists.txt
++++ b/libcxxabi/src/CMakeLists.txt
+@@ -129,7 +129,7 @@ if ( APPLE )
+       set(LIBCXXABI_SANITIZER_LIBRARY "${LIBCXXABI_SANITIZER_LIBRARY}" PARENT_SCOPE)
+       message(STATUS "Manually linking compiler-rt library: ${LIBCXXABI_SANITIZER_LIBRARY}")
+       add_library_flags("${LIBCXXABI_SANITIZER_LIBRARY}")
+-      add_link_flags("-Wl,-rpath,${LIBDIR}")
++      set(LIBCXXABI_INSTALL_RPATH "${LIBDIR}")
+     endif()
+   endif()
+ 
+@@ -145,6 +145,11 @@ if ( APPLE )
+   endif()
+ endif()
+ 
++if (UNIX AND NOT APPLE AND NOT ( MATCHES "AIX") AND LIBCXXABI_ENABLE_SHARED AND LIBCXXABI_USE_LLVM_UNWINDER AND
++        NOT LIBCXXABI_STATICALLY_LINK_UNWINDER_IN_SHARED_LIBRARY AND (TARGET unwind_shared OR HAVE_LIBUNWIND))
++    set(LIBCXXABI_INSTALL_RPATH "\$ORIGIN")
++endif()
++
+ split_list(LIBCXXABI_COMPILE_FLAGS)
+ split_list(LIBCXXABI_LINK_FLAGS)
+ 
+@@ -242,6 +247,11 @@ if (LIBCXXABI_ENABLE_SHARED)
+       endif()
+     endif()
+   endif()
++
++  if(NOT CMAKE_INSTALL_RPATH)
++    set_target_properties(cxxabi_shared PROPERTIES
++                          INSTALL_RPATH "${LIBCXXABI_INSTALL_RPATH}")
++  endif()
+ endif()
+ 
+ # Build the static library.
+diff --git a/llvm/cmake/modules/AddLLVM.cmake b/llvm/cmake/modules/AddLLVM.cmake
+index cb9254c023e6..b1e6a14b870c 100644
+--- a/llvm/cmake/modules/AddLLVM.cmake
++++ b/llvm/cmake/modules/AddLLVM.cmake
+@@ -2338,7 +2338,7 @@ function(llvm_setup_rpath name)
+     # FIXME: update this when there is better solution.
+     set(_install_rpath "${LLVM_LIBRARY_OUTPUT_INTDIR}" "${CMAKE_INSTALL_PREFIX}/lib${LLVM_LIBDIR_SUFFIX}" ${extra_libdir})
+   elseif(UNIX)
+-    set(_install_rpath "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}" ${extra_libdir})
++    set(_install_rpath "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}/${LLVM_DEFAULT_TARGET_TRIPLE}" "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}" ${extra_libdir})
+     if(${CMAKE_SYSTEM_NAME} MATCHES "(FreeBSD|DragonFly)")
+       set_property(TARGET ${name} APPEND_STRING PROPERTY
+                    LINK_FLAGS " -Wl,-z,origin ")

@@ -1,0 +1,50 @@
+# This file sets up a CMakeCache for the second stage of a simple distribution
+# bootstrap build.
+
+set(LLVM_ENABLE_PROJECTS "clang;clang-tools-extra;lld" CACHE STRING "")
+set(LLVM_ENABLE_RUNTIMES "all" CACHE STRING "")
+# set(LLVM_DYLIB_COMPONENTS "Native" CACHE STRING "")
+set(LLVM_TARGETS_TO_BUILD "X86" CACHE STRING "")
+
+set(LLVM_ENABLE_DUMP ON CACHE BOOL "")
+
+# set(LLVM_BUILD_LLVM_DYLIB ON CACHE BOOL "")
+# set(LLVM_LINK_LLVM_DYLIB ON CACHE BOOL "")
+
+# set(LLVM_ENABLE_LLD ON CACHE BOOL "")
+# set(LLVM_ENABLE_LIBCXX ON CACHE BOOL "")
+# set(LIBCXX_USE_COMPILER_RT YES CACHE BOOL "")
+# set(LIBCXXABI_USE_COMPILER_RT YES CACHE BOOL "")
+# set(LIBCXXABI_USE_LLVM_UNWINDER YES CACHE BOOL "")
+
+# set(LLVM_INSTALL_BINUTILS_SYMLINKS ON CACHE BOOL "")
+# set(LLVM_INSTALL_CCTOOLS_SYMLINKS ON CACHE BOOL "")
+
+set(LLVM_PARALLEL_COMPILE_JOBS 8 CACHE STRING "")
+set(LLVM_PARALLEL_LINK_JOBS 1 CACHE STRING "")
+
+set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "")
+set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -g -DNDEBUG" CACHE STRING "")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g -DNDEBUG" CACHE STRING "")
+
+# setup toolchain
+set(LLVM_INSTALL_TOOLCHAIN_ONLY ON CACHE BOOL "")
+set(LLVM_TOOLCHAIN_TOOLS
+  dsymutil
+  llvm-cov
+  llvm-dwarfdump
+  llvm-profdata
+  llvm-objdump
+  llvm-nm
+  llvm-size
+  CACHE STRING "")
+
+set(LLVM_DISTRIBUTION_COMPONENTS
+  clang
+  LTO
+  clang-format
+  clang-resource-headers
+  builtins
+  runtimes
+  ${LLVM_TOOLCHAIN_TOOLS}
+  CACHE STRING "")
