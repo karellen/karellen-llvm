@@ -82,7 +82,7 @@ for docker_img, docker_settings in DOCKER_BASES.items():
                             f" && chown {uname}:{gname} /build"
                             f" && chown {uname}:{gname} {udir}"
                             f" && chown {uname}:{gname} {ccache_dir}"
-                            f' && export PYTHON_BIN="$(echo /opt/python/cp39*)/bin"'
+                            f' && export PYTHON_BIN="$(echo /opt/python/cp{PYTHON_VERSION}*)/bin"'
                             f' && export PATH="$PYTHON_BIN:$PATH"'
                             f' && export PYTHON_VERSION="$("$PYTHON_BIN/python" -c \'import sys; print(".".join(map(str, sys.version_info[:2])))\')"'
                             f' && ln -s "$PYTHON_BIN/python" "$(echo -n $($PYTHON_BIN/python3-config --prefix)/lib/libpython3.so)"'

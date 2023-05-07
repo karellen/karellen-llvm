@@ -11,10 +11,10 @@ LLVM_DISTRO_CONF="$(readlink -nf twostage.cmake)"
 
 if [ -n "${NO_CCACHE:-}" ]; then
     CCACHE=true
-    LLVM_CCACHE_BUILD=False
+    LLVM_CCACHE_BUILD=OFF
 else
     CCACHE=ccache
-    LLVM_CCACHE_BUILD=True
+    LLVM_CCACHE_BUILD=ON
     mkdir -p "$CCACHE_DIR"
     export CCACHE_DIR
     cat > "$CCACHE_DIR/ccache.conf" <<'__EOF__'
