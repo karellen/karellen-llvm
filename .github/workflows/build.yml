@@ -9,6 +9,7 @@ on:
 jobs:
   build-primary:
     runs-on: self-hosted
+    timeout-minutes: 600
     continue-on-error: false
     env:
       TWINE_USERNAME: __token__
