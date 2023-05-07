@@ -20,19 +20,46 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
-      - uses: actions/cache/restore@v3
+      - name: Restore Cache
+        uses: actions/cache/restore@v3
         id: restore-ccache
         with:
           path: ccache
-          key: ccache
-      - shell: bash
+          key: primes-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            primes-${{ runner.os }}
+      - name: Install Twine
+        shell: bash
         run: |
+          set -eEux
+          set -o pipefail
+
+          sudo pip install twine
+          twine --version
+      - name: Build
+        shell: bash
+        run: |
+          set -eEux
+          set -o pipefail
+
           patch -d llvm-project -p1 < patches/*
           ./docker-build.py -m build
-      - uses: actions/cache/save@v3
+          twine check --strict wheels/*.whl
+      - name: Update Cache
+        uses: actions/cache/save@v3
         id: save-ccache
         if: |
           (success() || failure()) && github.ref_name == 'master'
         with:
+          key: primes-${{ runner.os }}-${{ github.run_id }}
           path: ccache
-          key: ccache
+      - name: Upload Releases
+        shell: bash
+        if: |
+          github.ref_name == 'master'
+        run: |
+          set -eEux
+          set -o pipefail
+          shopt -u extglob
+
+          twine upload wheels/*!(debug)*.whl
