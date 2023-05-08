@@ -60,6 +60,9 @@ jobs:
         run: |
           set -eEux
           set -o pipefail
-          shopt -u extglob
+          shopt -s extglob
 
           twine upload wheels/*!(debug)*.whl
+          
+          shopt -u extglob
+          
