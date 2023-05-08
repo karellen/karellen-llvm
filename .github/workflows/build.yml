@@ -63,7 +63,7 @@ jobs:
           set -o pipefail
           shopt -s extglob
 
-          twine upload wheels/!(*debug*).whl
+          twine upload --non-interactive --skip-existing wheels/!(*debug*).whl
           
           shopt -u extglob
           
