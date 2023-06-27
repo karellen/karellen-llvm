@@ -8,8 +8,8 @@ from pwd import getpwuid
 from subprocess import Popen
 
 PYTHON_VERSION = "310"
-CCACHE_VERSION = "4.8"
-CMAKE_VERSION = "3.26.3"
+CCACHE_VERSION = "4.8.2"
+CMAKE_VERSION = "3.26.4"
 
 DOCKER_BASES = {
     "quay.io/pypa/manylinux2014_x86_64:latest": (
