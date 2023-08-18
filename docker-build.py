@@ -9,7 +9,7 @@ from subprocess import Popen
 
 PYTHON_VERSION = "310"
 CCACHE_VERSION = "4.8.2"
-CMAKE_VERSION = "3.26.4"
+CMAKE_VERSION = "3.27.3"
 
 DOCKER_BASES = {
     "quay.io/pypa/manylinux2014_x86_64:latest": (
