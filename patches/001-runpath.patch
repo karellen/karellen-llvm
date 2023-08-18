@@ -1,18 +1,18 @@
 diff --git a/libcxx/src/CMakeLists.txt b/libcxx/src/CMakeLists.txt
 --- a/libcxx/src/CMakeLists.txt
 +++ b/libcxx/src/CMakeLists.txt
-@@ -182,6 +182,11 @@
-   endif()
- endif()
+@@ -184,6 +184,11 @@
+ split_list(LIBCXX_COMPILE_FLAGS)
+ split_list(LIBCXX_LINK_FLAGS)
  
 +if (UNIX AND NOT APPLE AND NOT (${CMAKE_SYSTEM_NAME} MATCHES "AIX") AND LIBCXX_ENABLE_SHARED AND LIBCXXABI_USE_LLVM_UNWINDER AND
 +        NOT LIBCXXABI_STATICALLY_LINK_UNWINDER_IN_SHARED_LIBRARY AND (TARGET unwind_shared OR HAVE_LIBUNWIND))
 +    add_library_flags("-Wl,-rpath,'$$ORIGIN'")
 +endif()
 +
- if (LIBCXX_ENABLE_PARALLEL_ALGORITHMS AND NOT TARGET pstl::ParallelSTL)
-   message(FATAL_ERROR "Could not find ParallelSTL")
- endif()
+ # Build the shared library.
+ if (LIBCXX_ENABLE_SHARED)
+   add_library(cxx_shared SHARED ${exclude_from_all} ${LIBCXX_SOURCES} ${LIBCXX_HEADERS})
 diff --git a/libcxxabi/src/CMakeLists.txt b/libcxxabi/src/CMakeLists.txt
 --- a/libcxxabi/src/CMakeLists.txt
 +++ b/libcxxabi/src/CMakeLists.txt
