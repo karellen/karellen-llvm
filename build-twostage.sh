@@ -74,4 +74,4 @@ cmake3 --build "$BUILD_DIR" --target stage2
 
 ccache -s
 
-./packager.py -b "$BUILD_DIR/tools/clang/stage2-bins" -t "$TARGET_DIR" -s "$SOURCE_DIR"
+./packager.py -S 2 -b "$BUILD_DIR" -t "$TARGET_DIR" -s "$SOURCE_DIR"

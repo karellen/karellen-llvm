@@ -20,6 +20,12 @@ The project currently contains the following projects:
 [![Karellen LLVM Core Debug Downloads Per Week](https://img.shields.io/pypi/dw/karellen-llvm-core-debug?logo=pypi)](https://pypistats.org/packages/karellen-llvm-core-debug)
 [![Karellen LLVM Core Debug Downloads Per Month](https://img.shields.io/pypi/dm/karellen-llvm-core-debug?logo=pypi)](https://pypistats.org/packages/karellen-llvm-core-debug)
 
+## Toolchain Tools
+[![Karellen LLVM Toolchain Tools Version](https://img.shields.io/pypi/v/karellen-llvm-toolchain-tools?logo=pypi)](https://pypi.org/project/karellen-llvm-toolchain-tools/)
+[![Karellen LLVM Toolchain Tools Downloads Per Day](https://img.shields.io/pypi/dd/karellen-llvm-toolchain-tools?logo=pypi)](https://pypistats.org/packages/karellen-llvm-toolchain-tools)
+[![Karellen LLVM Toolchain Tools Downloads Per Week](https://img.shields.io/pypi/dw/karellen-llvm-toolchain-tools?logo=pypi)](https://pypistats.org/packages/karellen-llvm-toolchain-tools)
+[![Karellen LLVM Toolchain Tools Downloads Per Month](https://img.shields.io/pypi/dm/karellen-llvm-toolchain-tools?logo=pypi)](https://pypistats.org/packages/karellen-llvm-toolchain-tools)
+
 ## Clang
 [![Karellen LLVM Clang Version](https://img.shields.io/pypi/v/karellen-llvm-clang?logo=pypi)](https://pypi.org/project/karellen-llvm-clang/)
 [![Karellen LLVM Clang Downloads Per Day](https://img.shields.io/pypi/dd/karellen-llvm-clang?logo=pypi)](https://pypistats.org/packages/karellen-llvm-clang)

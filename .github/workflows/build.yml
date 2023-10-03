@@ -46,6 +46,7 @@ jobs:
           patch -d llvm-project -p1 < patches/*
           ./docker-build.py -m build
           twine check --strict wheels/*.whl
+          ls -la wheels/*
       - name: Update Cache
         uses: actions/cache/save@v3
         id: save-ccache
@@ -64,6 +65,6 @@ jobs:
           shopt -s extglob
 
           twine upload --non-interactive --skip-existing wheels/!(*debug*).whl
-          
+
           shopt -u extglob
-          
+

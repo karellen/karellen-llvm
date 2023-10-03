@@ -1,19 +1,51 @@
 #!/usr/bin/env python3
 
 import argparse
+import os
 import sys
 from enum import IntFlag, auto
 from functools import lru_cache, partial
 from itertools import chain
 from pathlib import Path
 from shutil import rmtree, move
-from subprocess import check_call
+from subprocess import check_call, check_output
 from tempfile import TemporaryDirectory
 from typing import Union
 
 from elftools.elf.elffile import ELFFile, ELFError
 
 import version_extractor
+
+TOOLCHAIN_TOOLS = ["llvm-ar",
+                   "llvm-cov",
+                   "llvm-cxxfilt",
+                   "llvm-dwp",
+                   "llvm-ranlib",
+                   "llvm-lib",
+                   "llvm-ml",
+                   "llvm-nm",
+                   "llvm-objcopy",
+                   "llvm-objdump",
+                   "llvm-pdbutil",
+                   "llvm-rc",
+                   "llvm-readobj",
+                   "llvm-size",
+                   "llvm-strings",
+                   "llvm-strip",
+                   "llvm-profdata",
+                   "llvm-symbolizer",
+                   "addr2line",
+                   "ar",
+                   "c++filt",
+                   "ranlib",
+                   "nm",
+                   "objcopy",
+                   "objdump",
+                   "readelf",
+                   "size",
+                   "strings",
+                   "strip",
+                   ]
 
 
 class ElfState(IntFlag):
@@ -23,6 +55,7 @@ class ElfState(IntFlag):
 
 
 parser = argparse.ArgumentParser()
+parser.add_argument("-S", "--stage", type=int, choices=[1, 2], required=True)
 parser.add_argument("-b", "--build-dir", type=Path, help="LLVM build directory", required=True)
 parser.add_argument("-t", "--target-dir", type=Path, help="LLVM binary directory", required=True)
 parser.add_argument("-s", "--source-dir", type=Path, default=Path("llvm-project"), help="LLVM project source")
@@ -80,6 +113,8 @@ def get_data_files(src_dir):
         if not files:
             continue
         path_prefix = root[len(current_path) + 1:]
+        if path_prefix.endswith(".egg-info"):
+            continue
         yield path_prefix, [jp(root, f) for f in files]
 
 
@@ -125,6 +160,7 @@ setup(
     data_files=data_files,
     package_data={},
     install_requires=%(requires)r,
+    extras_require=%(extras)r,
     dependency_links=[],
     zip_safe=False,
     obsoletes=[],
@@ -134,18 +170,32 @@ setup(
 
 
 class Packager:
-    def __init__(self, source_dir: Path, build_dir: Path, target_dir: Path, wheel_dir: Path = Path("wheels")):
+    def __init__(self, stage: int, source_dir: Path, build_dir: Path, target_dir: Path,
+                 wheel_dir: Path = Path("wheels")):
+        self.stage = stage
         self.source_dir = source_dir
         self.build_dir = build_dir
         self.target_dir = target_dir
         self.target_dir_debug = target_dir.with_suffix(target_dir.suffix + ".debug")
         self.wheel_dir = wheel_dir
         self.processed: list[Path] = []
+        self._call_env = dict(os.environ)
+        self._llvm_config = self.build_dir / "bin" / "llvm-config"
 
-        self._objcopy = (build_dir / "bin" / "llvm-objcopy").absolute()
-        self._strip = (build_dir / "bin" / "llvm-strip").absolute()
+        if self.stage == 2:
+            log(f"Running in two-stage mode!")
+            self.build_dir = self.build_dir / "tools" / "clang" / "stage2-bins"
+            build_dir_libs = self.build_dir / "lib"
+            host_target = check_output([self._llvm_config, '--host-target'], universal_newlines=True).strip()
+            self._call_env["LD_LIBRARY_PATH"] = f"{build_dir_libs / host_target}:{build_dir_libs}"
+
+        self._objcopy = (self.build_dir / "bin" / "llvm-objcopy").absolute()
+        self._strip = (self.build_dir / "bin" / "llvm-strip").absolute()
 
         self.version = version_extractor.get_version("python", self.source_dir)
+
+    def call(self, *args, **kwargs):
+        check_call(args, env=self._call_env, **kwargs)
 
     def prepare(self):
         rm_dir_contents(self.target_dir)
@@ -156,7 +206,7 @@ class Packager:
         # self.target_dir.mkdir(parents=True, exist_ok=True)
         ninja = ["ninja-build", "-C", self.build_dir]
         ninja.extend(cmds)
-        check_call(ninja)
+        self.call(*ninja)
 
     def record_processed(self):
         target_dir = self.target_dir
@@ -173,9 +223,9 @@ class Packager:
 
     @lru_cache
     def check_debug_tools(self):
-        check_call([self._objcopy, "--version"])
+        self.call(self._objcopy, "--version")
         log("`objcopy` is working")
-        check_call([self._strip, "--version"])
+        self.call(self._strip, "--version")
         log("`strip` is working")
         return True
 
@@ -191,14 +241,14 @@ class Packager:
                 target_debug_f = target_dir_debug / debug_f.relative_to(target_dir)
                 if extract:
                     log(f"\tExtracting {f!s}")
-                    check_call([self._objcopy, "--only-keep-debug", f, debug_f])
+                    self.call(self._objcopy, "--only-keep-debug", f, debug_f)
                 if strip_debug:
                     log(f"\tStripping {f!s}")
-                    check_call([self._strip, "-g", f])
+                    self.call(self._strip, "-g", f)
                 if extract:
-                    check_call([self._objcopy, "--add-gnu-debuglink",
-                                debug_f.name, f.absolute()],
-                               cwd=debug_f.parent)
+                    self.call(self._objcopy, "--add-gnu-debuglink",
+                              debug_f.name, f.absolute(),
+                              cwd=debug_f.parent)
                     target_debug_f.parent.mkdir(parents=True, exist_ok=True)
                     move(debug_f, target_debug_f)
                     target_debug_f.chmod(0o644)
@@ -227,7 +277,7 @@ class Packager:
                 with open(tmp_setup, "wt") as f:
                     f.write(setup_file)
 
-                check_call([sys.executable, tmp_setup, "bdist_wheel"], cwd=package_dir)
+                self.call(sys.executable, tmp_setup, "bdist_wheel", cwd=package_dir)
             for f in package_dir.glob("dist/*.whl"):
                 move(f, self.wheel_dir / f.name)
 
@@ -240,7 +290,7 @@ class Packager:
 
 def main():
     args = parser.parse_args()
-    pkgr = Packager(args.source_dir, args.build_dir, args.target_dir)
+    pkgr = Packager(args.stage, args.source_dir, args.build_dir, args.target_dir)
     pkgr.prepare()
 
     pkgr.build("install-cxx", "install-cxxabi", "install-unwind")
@@ -256,12 +306,25 @@ def main():
                       description="Karellen LLVM core libraries",
                       long_description="Contains LLVM, LTO, Remarks, libc++, libc++abi, and libunwind",
                       keywords=["LLVM", "libc++", "libcxx"],
-                      requires=[]),
+                      requires=[], extras={}),
                  dict(name="karellen-llvm-core-debug",
                       description="Karellen LLVM core libraries (debug info)",
                       long_description="Contains LLVM, LTO, Remarks, libc++, libc++abi, and libunwind debug info",
                       requires=[f"karellen-llvm-core=={pkgr.version}"],
+                      extras={}
                       ))
+
+    pkgr.build(*map(lambda x: f"install-{x}", TOOLCHAIN_TOOLS))
+    pkgr.delete_processed()
+    pkgr.record_processed()
+    pkgr.process_elf(extract=False)
+    pkgr.package(dict(name="karellen-llvm-toolchain-tools",
+                      version=pkgr.version,
+                      description="Karellen LLVM Toolchain Tools",
+                      long_description="Self-contained LLVM toolchain tools",
+                      requires=[f"karellen-llvm-core=={pkgr.version}"],
+                      extras={},
+                      keywords=["LLVM", "toolchain", "tools"]), None)
 
     pkgr.build("install")
     pkgr.delete_processed()
@@ -275,6 +338,7 @@ def main():
                       description="Karellen Clang compiler infrastructure",
                       long_description="Self-contained LLVM Clang compiler infrastructure",
                       requires=[f"karellen-llvm-core=={pkgr.version}"],
+                      extras={"tools": [f"karellen-llvm-toolchain-tools=={pkgr.version}"]},
                       keywords=["LLVM", "clang", "c", "c++", "compiler"]), None)
 
 
