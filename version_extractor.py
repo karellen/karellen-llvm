@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from subprocess import check_output
 from typing import Union
+from os.path import exists
 
 GIT_LOG_RE = re.compile(r"([0-9a-f]+)(?:\s+\(tag: llvmorg-(.+)\))?\n")
 LLVM_VERSION_RE = re.compile(r"(\d+).(\d+).(\d+)(?:-(rc\d+))?")
@@ -43,7 +44,11 @@ def get_version(mode: Union[str, Path], git_dir: Union[str, Path]):
                 # print(commit_id, , post_commits)
                 major, minor, patch, rc = LLVM_VERSION_RE.findall(tag)[0]
                 if mode == "python":
-                    return (f"{major}.{minor}.{patch}"
+                    release = None
+                    if exists(".release"):
+                        with open(".release", "rt") as f:
+                            release = f.read().strip()
+                    return (f"{major}.{minor}.{patch}{f'.{release}' if release else ''}"
                             f"{f'{rc}' if rc else ''}"
                             f"{f'.post{post_commits}' if post_commits else ''}"
                             )

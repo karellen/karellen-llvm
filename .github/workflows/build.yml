@@ -43,7 +43,9 @@ jobs:
           set -eEux
           set -o pipefail
 
-          patch -d llvm-project -p1 < patches/*
+          for p in patches/*; do
+            patch -d llvm-project -p1 < $p
+          done
           ./docker-build.py -m build
           twine check --strict wheels/*.whl
           ls -la wheels/*
