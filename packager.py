@@ -194,6 +194,7 @@ class Packager:
         self._strip = (self.build_dir / "bin" / "llvm-strip").absolute()
 
         self.version = version_extractor.get_version("python", self.source_dir)
+        log(f"LLVM Python Version: {self.version}")
 
     def call(self, *args, **kwargs):
         check_call(args, env=self._call_env, **kwargs)

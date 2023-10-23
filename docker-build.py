@@ -3,7 +3,7 @@
 import argparse
 from grp import getgrgid
 from os import makedirs, pipe, getuid, getgid, close
-from os.path import join as jp, abspath as ap, expanduser
+from os.path import exists, join as jp, abspath as ap, expanduser
 from pwd import getpwuid
 from subprocess import Popen
 
@@ -68,6 +68,8 @@ for docker_img, docker_settings in DOCKER_BASES.items():
     cmd_line.extend(["-v", "%s:%s" % (ap("ccache"), jp("/build", "ccache"))])
     cmd_line.extend(["-v", "%s:%s" % (ap("wheels"), jp("/build", "wheels"))])
     cmd_line.extend(["-v", "%s:%s" % (ap(".git"), jp("/build", ".git"))])
+    if exists(".release"):
+        cmd_line.extend(["-v", "%s:%s:ro" % (ap(".release"), jp("/build", ".release"))])
     cmd_line.append(docker_img)
     cmd_line.append("/bin/bash")
 
