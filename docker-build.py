@@ -2,14 +2,14 @@
 
 import argparse
 from grp import getgrgid
-from os import makedirs, pipe, getuid, getgid, close
+from os import makedirs, pipe, getuid, getgid, close, environ
 from os.path import exists, join as jp, abspath as ap, expanduser
 from pwd import getpwuid
 from subprocess import Popen
 
 PYTHON_VERSION = "310"
-CCACHE_VERSION = "4.8.2"
-CMAKE_VERSION = "3.27.3"
+CCACHE_VERSION = "4.8.3"
+CMAKE_VERSION = "3.27.7"
 
 DOCKER_BASES = {
     "quay.io/pypa/manylinux2014_x86_64:latest": (
@@ -37,6 +37,8 @@ MAPPED_FILES = [
 ]
 
 MAPPED_DIRS = ["llvm.twostage.build"]
+ENV_VARS = ["NO_CCACHE"]
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-m", "--mode", choices=["build", "package"], required=True)
@@ -70,6 +72,11 @@ for docker_img, docker_settings in DOCKER_BASES.items():
     cmd_line.extend(["-v", "%s:%s" % (ap(".git"), jp("/build", ".git"))])
     if exists(".release"):
         cmd_line.extend(["-v", "%s:%s:ro" % (ap(".release"), jp("/build", ".release"))])
+
+    for env in ENV_VARS:
+        if env in environ:
+            cmd_line.extend(["-e", f"{env}={environ[env]}"])
+
     cmd_line.append(docker_img)
     cmd_line.append("/bin/bash")
 
