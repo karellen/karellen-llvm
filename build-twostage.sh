@@ -18,7 +18,7 @@ else
     mkdir -p "$CCACHE_DIR"
     export CCACHE_DIR
     cat > "$CCACHE_DIR/ccache.conf" <<'__EOF__'
-max_size = 20.0G
+max_size = 9.0G
 inode_cache = false
 compiler_check = %compiler% --version
 __EOF__
