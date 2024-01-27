@@ -41,8 +41,15 @@ def get_version(mode: Union[str, Path], git_dir: Union[str, Path]):
             if not tag:
                 post_commits += 1
             else:
-                # print(commit_id, , post_commits)
-                major, minor, patch, rc = LLVM_VERSION_RE.findall(tag)[0]
+                # print(commit_id, tag, post_commits)
+                if tag.endswith("-init"):
+                    major = tag[:-5]
+                    minor = patch = 0
+                    rc = f".dev{post_commits}"
+                    post_commits = 0
+                else:
+                    major, minor, patch, rc = LLVM_VERSION_RE.findall(tag)[0]
+
                 if mode == "python":
                     release = None
                     if exists(".release"):
@@ -56,10 +63,6 @@ def get_version(mode: Union[str, Path], git_dir: Union[str, Path]):
                     return (f"-DLLVM_VERSION_MAJOR={major} "
                             f"-DLLVM_VERSION_MINOR={minor} "
                             f"-DLLVM_VERSION_PATCH={patch} "
-                            # f"-DLLVM_VERSION_SUFFIX="
-                            # f"{f'{rc}' if rc else ''}"
-                            # f"{'-' if rc and post_commits else ''}"
-                            # f"{f'post{post_commits}' if post_commits else ''}"
                             )
                 else:
                     raise ValueError(f"mode: {mode}")
