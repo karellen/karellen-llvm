@@ -32,6 +32,10 @@ jobs:
               echo "New version: $NEW_VERSION"
               BRANCH_NAME="auto-update-${CURRENT_VERSION}-${NEW_VERSION}"
               TITLE="Automatic update from $CURRENT_VERSION to $NEW_VERSION"
+
+              git config --global user.email "supervisor@karellen.co"
+              git config --global user.name "Karellen Supervisor"
+
               git checkout -b "$BRANCH_NAME"
               git commit -a -m "$TITLE"
               git push
