@@ -25,7 +25,7 @@ jobs:
 
           CURRENT_VERSION="$(./version_extractor.py -m python -d llvm-project)"
           git submodule update --init --remote --recursive
-          NEW_VERSION="(./version_extractor.py -m python -d llvm-project)"
+          NEW_VERSION="$(./version_extractor.py -m python -d llvm-project)"
 
           if [ "$CURRENT_VERSION" != "$NEW_VERSION" ]; then
               echo "Current version: $CURRENT_VERSION"
