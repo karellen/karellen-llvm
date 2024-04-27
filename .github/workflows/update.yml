@@ -38,7 +38,7 @@ jobs:
 
               git checkout -b "$BRANCH_NAME"
               git commit -a -m "$TITLE"
-              git push
+              git push --set-upstream origin "$BRANCH_NAME"
 
               curl -L \
                    -X POST \
