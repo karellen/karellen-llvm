@@ -1,0 +1,34 @@
+name: karellen-llvm-update
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+jobs:
+  check-update:
+    runs-on: self-hosted
+    timeout-minutes: 600
+    continue-on-error: false
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      SEGMENT_DOWNLOAD_TIMEOUT_MINS: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Check Updates 
+        shell: bash
+        run: |
+          set -eEux
+          set -o pipefail
+          shopt -s extglob
+
+          CURRENT_VERSION="$(./version-extractor.py -m python -d llvm-project)"
+          git submodule update --init --remote --recursive
+          NEW_VERSION="(./version-extractor.py -m python -d llvm-project)"
+
+          if [ "$CURRENT_VERSION" != "$NEW_VERSION" ]; then
+              echo "Current version: $CURRENT_VERSION"
+              echo "New version: $NEW_VERSION"
+          fi
+
