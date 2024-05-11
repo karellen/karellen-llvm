@@ -9,7 +9,7 @@ jobs:
     timeout-minutes: 600
     continue-on-error: false
     env:
-      GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
       SEGMENT_DOWNLOAD_TIMEOUT_MINS: 60
     steps:
       - name: Ensure only single auto-update branch
@@ -22,6 +22,7 @@ jobs:
           CURRENT_BRANCH="$(git ls-remote $GITHUB_SERVER_URL/$GITHUB_REPOSITORY 'auto-update-*' 2>/dev/null | { grep -o 'refs/heads/auto-update-.*' || true; } | sed 's/refs\/heads\///')"
           if [ -n "$CURRENT_BRANCH" ] ; then
             echo "# Pending auto-update branch $CURRENT_BRANCH already exists!" >> $GITHUB_STEP_SUMMARY
+            git init # This is because GH utility is stupid and needs a git repository for non-git actions
             gh run cancel ${{ github.run_id }}
             sleep 10
           fi
@@ -55,6 +56,6 @@ jobs:
               git commit -a -m "$TITLE"
               git push --set-upstream origin "$BRANCH_NAME"
 
-              PR_URL="$(gh pr create --head "$BRANCH_NAME" --base master --fill --no-maintainer-edit)"
+              PR_URL="$(GH_TOKEN="${{secrets.PAT_TOKEN}}" gh pr create --head "$BRANCH_NAME" --base master --fill --no-maintainer-edit)"
               gh pr merge --merge --auto -d "$PR_URL"
           fi
