@@ -60,6 +60,6 @@ jobs:
               git commit -a -m "$TITLE"
               git push --set-upstream origin "$BRANCH_NAME"
 
-              PR_URL="$(gh pr create --head "$BRANCH_NAME" --base master --title "$TITLE")"
+              PR_URL="$(gh pr create --head "$BRANCH_NAME" --base master --fill --no-maintainer-edit)"
               gh pr merge --auto -d "$PR_URL"
           fi
