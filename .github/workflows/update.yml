@@ -9,7 +9,7 @@ jobs:
     timeout-minutes: 600
     continue-on-error: false
     env:
-      GH_TOKEN: ${{ github.token }}
+      GH_TOKEN: ${{ secrets.PAT_TOKEN }}
       SEGMENT_DOWNLOAD_TIMEOUT_MINS: 60
     steps:
       - name: Ensure only single auto-update branch
@@ -58,6 +58,6 @@ jobs:
               git commit -a -m "$TITLE"
               git push --set-upstream origin "$BRANCH_NAME"
 
-              PR_URL="$(GH_TOKEN="${{secrets.PAT_TOKEN}}" gh pr create --head "$BRANCH_NAME" --base master --fill --no-maintainer-edit)"
+              PR_URL="$(gh pr create --head "$BRANCH_NAME" --base master --fill --no-maintainer-edit)"
               gh pr merge --merge --auto -d "$PR_URL"
           fi
