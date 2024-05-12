@@ -22,7 +22,9 @@ jobs:
           CURRENT_BRANCH="$(git ls-remote $GITHUB_SERVER_URL/$GITHUB_REPOSITORY 'auto-update-*' 2>/dev/null | { grep -o 'refs/heads/auto-update-.*' || true; } | sed 's/refs\/heads\///')"
           if [ -n "$CURRENT_BRANCH" ] ; then
             echo "# Pending auto-update branch $CURRENT_BRANCH already exists!" >> $GITHUB_STEP_SUMMARY
-            git init # This is because GH utility is stupid and needs a git repository for non-git actions
+            # This is because GH utility is stupid and needs a git repository for non-git actions
+            git init
+            git remote add origin $GITHUB_SERVER_URL/$GITHUB_REPOSITORY
             gh run cancel ${{ github.run_id }}
             sleep 10
           fi
