@@ -51,6 +51,7 @@ jobs:
               else
                   echo "## Submodule $SUBMODULE_NAME @ $SUBMODULE_URL#$SUBMODULE_BRANCH local $SUBMODULE_SHA unchanged" >> $GITHUB_STEP_SUMMARY
                   MODULES_CHANGED="1"
+                  export MODULES_CHANGED
               fi
           done
 
