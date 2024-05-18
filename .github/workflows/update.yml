@@ -47,10 +47,10 @@ jobs:
 
               # The submodules here are not initialized so there'll be a '-' in front of the local SHA
               if [ "$SUBMODULE_SHA" != -"$REMOTE_SHA" ]; then
-                  echo "## Submodule $SUBMODULE_NAME @ $SUBMODULE_URL#$SUBMODULE_BRANCH local $SUBMODULE_SHA vs remote -$REMOTE_SHA" >> $GITHUB_STEP_SUMMARY
+                  echo "## Submodule $SUBMODULE_NAME @ $SUBMODULE_URL/tree/$SUBMODULE_BRANCH local $SUBMODULE_SHA vs remote -$REMOTE_SHA" >> $GITHUB_STEP_SUMMARY
                   MODULES_CHANGED="1"
               else
-                  echo "## Submodule $SUBMODULE_NAME @ $SUBMODULE_URL#$SUBMODULE_BRANCH local $SUBMODULE_SHA unchanged" >> $GITHUB_STEP_SUMMARY
+                  echo "## Submodule $SUBMODULE_NAME @ $SUBMODULE_URL/tree/$SUBMODULE_BRANCH local $SUBMODULE_SHA unchanged" >> $GITHUB_STEP_SUMMARY
               fi
           done <<< "$(git submodule status)"
 
