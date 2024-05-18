@@ -38,7 +38,7 @@ jobs:
 
           MODULES_CHANGED=""
 
-          git submodule status | while read line; do
+          while read line; do
               read -r SUBMODULE_SHA SUBMODULE_NAME SUBMODULE_DESCRIBE <<<"$line"
               GIT_CONFIG="$(git config -f .gitmodules -l | grep 'submodule.'$SUBMODULE_NAME.)"
               SUBMODULE_URL="$(echo "$GIT_CONFIG" | grep 'submodule.'$SUBMODULE_NAME'.url=' | sed 's/submodule\.'$SUBMODULE_NAME'\.url=//')"
@@ -51,9 +51,8 @@ jobs:
               else
                   echo "## Submodule $SUBMODULE_NAME @ $SUBMODULE_URL#$SUBMODULE_BRANCH local $SUBMODULE_SHA unchanged" >> $GITHUB_STEP_SUMMARY
                   MODULES_CHANGED="1"
-                  export MODULES_CHANGED
               fi
-          done
+          done <<< "$(git submodule status)"
 
           if [ -z "$MODULES_CHANGED" ]; then
               echo "# No submodules changed detected - exiting!" >> $GITHUB_STEP_SUMMARY
