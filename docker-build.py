@@ -7,9 +7,10 @@ from os.path import exists, join as jp, abspath as ap, expanduser
 from pwd import getpwuid
 from subprocess import Popen
 
-PYTHON_VERSION = "310"
-CCACHE_VERSION = "4.8.3"
-CMAKE_VERSION = "3.27.7"
+PYTHON_VERSION = "312"
+CCACHE_VERSION = "4.10.2"
+CMAKE_VERSION = "3.30.2"
+NINJA_VERSION = "1.12.1"
 
 DOCKER_BASES = {
     "quay.io/pypa/manylinux2014_x86_64:latest": (
@@ -20,7 +21,7 @@ DOCKER_BASES = {
                          f" && curl -Ls -o /tmp/cmake.sh https://github.com/Kitware/CMake/releases/download/v{CMAKE_VERSION}/cmake-{CMAKE_VERSION}-linux-x86_64.sh"
                          " && chmod +x /tmp/cmake.sh && /tmp/cmake.sh --exclude-subdir --skip-license --prefix=/usr/local"
                          " && ln -s /usr/local/bin/cmake /usr/local/bin/cmake3"
-                         " && curl -Ls -o /tmp/ninja.zip https://github.com/ninja-build/ninja/releases/download/v1.11.1/ninja-linux.zip"
+                         f" && curl -Ls -o /tmp/ninja.zip https://github.com/ninja-build/ninja/releases/download/v{NINJA_VERSION}/ninja-linux.zip"
                          " && unzip /tmp/ninja.zip -d /usr/local/bin"
                          " && ln -s /usr/local/bin/ninja /usr/local/bin/ninja-build"
         # "&& tar -xf /opt/_internal/static-libs-for-embedding-only.tar.xz -C /opt/_internal"
