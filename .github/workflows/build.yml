@@ -58,7 +58,7 @@ jobs:
           twine check --strict wheels/*.whl
           ls -la wheels/*
 
-          pip install --no-input --yes wheels/*
+          pip install --no-input wheels/*
           python -c pass
           which clang
           clang --version
