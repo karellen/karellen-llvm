@@ -58,8 +58,10 @@ jobs:
           twine check --strict wheels/*.whl
           ls -la wheels/*
 
-          sudo pip install --no-input wheels/*
-          sudo python3 -c pass
+          pip install --no-input wheels/*
+          python3 -c pass
+          PATH=~/.local/bin;$PATH
+          export PATH
           which clang
           clang --version
 
