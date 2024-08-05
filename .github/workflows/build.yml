@@ -36,9 +36,6 @@ jobs:
           set -eEux
           set -o pipefail
 
-          which python || true
-          which python3 || true
-          find / -name python\* || true
           sudo pip install twine
           twine --version
 
@@ -61,8 +58,8 @@ jobs:
           twine check --strict wheels/*.whl
           ls -la wheels/*
 
-          pip install --no-input wheels/*
-          python -c pass
+          sudo pip install --no-input wheels/*
+          sudo python3 -c pass
           which clang
           clang --version
 
