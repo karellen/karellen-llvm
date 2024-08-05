@@ -51,8 +51,19 @@ jobs:
 
           NO_CCACHE=1 ./docker-build.py -m build
 
+
+      - name: Test
+        shell: bash
+        run: |
           twine check --strict wheels/*.whl
           ls -la wheels/*
+
+          PATH="$HOME/.local/bin:$PATH"
+          export PATH
+          pip install --no-input wheels/*
+          python3 -c pass
+          which clang
+          clang --version
 
 #      - name: Update Cache
 #        uses: actions/cache/save@v3
