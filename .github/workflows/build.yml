@@ -36,6 +36,8 @@ jobs:
           set -eEux
           set -o pipefail
 
+          which python
+          which python3
           sudo pip install twine
           twine --version
 
