@@ -60,7 +60,7 @@ jobs:
 
           pip install --no-input wheels/*
           python3 -c pass
-          PATH=~/.local/bin;$PATH
+          PATH="$HOME/.local/bin;$PATH"
           export PATH
           which clang
           clang --version
