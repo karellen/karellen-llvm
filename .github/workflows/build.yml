@@ -36,7 +36,10 @@ jobs:
           set -eEux
           set -o pipefail
 
-          sudo pip install twine
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          PATH=$HOME/.local/bin:$PATH
+          export PATH
+          pip install --no-input twine
           twine --version
 
       - name: Build
@@ -58,8 +61,6 @@ jobs:
           twine check --strict wheels/*.whl
           ls -la wheels/*
 
-          PATH="$HOME/.local/bin:$PATH"
-          export PATH
           pip install --no-input wheels/*
           python3 -c pass
           which clang
