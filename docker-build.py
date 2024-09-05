@@ -9,7 +9,7 @@ from subprocess import Popen
 
 PYTHON_VERSION = "312"
 CCACHE_VERSION = "4.10.2"
-CMAKE_VERSION = "3.30.2"
+CMAKE_VERSION = "3.30.3"
 NINJA_VERSION = "1.12.1"
 
 DOCKER_BASES = {
@@ -59,7 +59,7 @@ ccache_dir = jp(udir, ".ccache")
 
 for docker_img, docker_settings in DOCKER_BASES.items():
     docker_suffix, init_script = docker_settings
-    cmd_line = ["docker", "run", "--rm", "-i"]
+    cmd_line = ["docker", "run", "--pull", "always", "--rm", "-i"]
     for mf in MAPPED_FILES:
         cmd_line.extend(["-v", "%s:%s:%s" % (ap(mf[0]), mf[1] or jp("/build", mf[0]), mf[2])])
     for md in MAPPED_DIRS:

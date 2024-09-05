@@ -48,6 +48,8 @@ TOOLCHAIN_TOOLS = ["llvm-ar",
                    "strip",
                    ]
 
+LLDB = ["lldb"]
+
 
 class ElfState(IntFlag):
     IsELF = auto()
@@ -328,13 +330,23 @@ def main():
                       extras={},
                       keywords=["LLVM", "toolchain", "tools"]), None)
 
+    pkgr.build(*map(lambda x: f"install-{x}", LLDB_PACKAGES))
+    pkgr.delete_processed()
+    pkgr.record_processed()
+    pkgr.process_elf(extract=False)
+    pkgr.package(dict(name="karellen-llvm-lldb",
+                      version=pkgr.version,
+                      description="Karellen LLDB infrastructure",
+                      long_description="Self-contained LLVM LLDB infrastructure",
+                      requires=[f"karellen-llvm-core=={pkgr.version}"],
+                      keywords=["LLVM", "lldb", "debugger"]), None)
+
     pkgr.build("install")
     pkgr.delete_processed()
     pkgr.process_elf(extract=False)
     pkgr.delete_in_target("lib/*a")
     pkgr.delete_in_target("include/clang*")
     pkgr.delete_in_target("include/lld*")
-
     pkgr.package(dict(name="karellen-llvm-clang",
                       version=pkgr.version,
                       description="Karellen Clang compiler infrastructure",
