@@ -48,7 +48,15 @@ TOOLCHAIN_TOOLS = ["llvm-ar",
                    "strip",
                    ]
 
-LLDB = ["lldb"]
+LLDB_TOOLS = ["lldb",
+              "lldb-argdumper",
+              "lldb-dap",
+              "lldb-instr",
+              "lldb-python-scripts",
+              "lldb-server",
+              "lldb-test",
+              "lldbIntelFeatures"
+              ]
 
 
 class ElfState(IntFlag):
@@ -103,12 +111,14 @@ TEMPLATE = """#!/usr/bin/env python
 #   -*- coding: utf-8 -*-
 import os
 import sys
-from os import walk, environ
-from os.path import abspath, join as jp
+from os import walk, environ, mkdir, rename
+from os.path import abspath, join as jp, exists
+from shutil import rmtree
 
-from setuptools import setup
+from setuptools import setup, find_namespace_packages
 from wheel_axle.bdist_axle import BdistAxle
 
+PYTHON_SRC_DIR = "python-src"
 
 def get_data_files(src_dir):
     current_path = abspath(src_dir)
@@ -116,12 +126,22 @@ def get_data_files(src_dir):
         if not files:
             continue
         path_prefix = root[len(current_path) + 1:]
-        if path_prefix.endswith(".egg-info"):
+        if path_prefix.endswith(".egg-info") or path_prefix.startswith(PYTHON_SRC_DIR):
             continue
         yield path_prefix, [jp(root, f) for f in files]
 
 
+# If we generate python sources, remove them from site-packages and package them as normal
+if exists(PYTHON_SRC_DIR):
+    rmtree(PYTHON_SRC_DIR)
+python_src_dir = jp("lib", f"python{'.'.join(str(v) for v in sys.version_info[:2])}", "site-packages")
+if exists(python_src_dir):
+    rename(python_src_dir, PYTHON_SRC_DIR)
+else:
+    mkdir(PYTHON_SRC_DIR)
+
 data_files = list(get_data_files("."))
+
 sys.argv.extend(("--root-is-pure", "false", "--abi-tag", "none", "--python-tag", "py3"))
 plat = os.environ.get("AUDITWHEEL_PLAT", None)
 if plat:
@@ -156,7 +176,8 @@ setup(
         'Source Code': 'https://github.com/karellen/karellen-llvm'
     },
     scripts=[],
-    packages=[],
+    packages=find_namespace_packages(where=PYTHON_SRC_DIR),
+    package_dir={'': PYTHON_SRC_DIR},
     namespace_packages=[],
     py_modules=[],
     entry_points={},
@@ -330,7 +351,7 @@ def main():
                       extras={},
                       keywords=["LLVM", "toolchain", "tools"]), None)
 
-    pkgr.build(*map(lambda x: f"install-{x}", LLDB_PACKAGES))
+    pkgr.build(*map(lambda x: f"install-{x}", LLDB_TOOLS))
     pkgr.delete_processed()
     pkgr.record_processed()
     pkgr.process_elf(extract=False)
@@ -339,6 +360,7 @@ def main():
                       description="Karellen LLDB infrastructure",
                       long_description="Self-contained LLVM LLDB infrastructure",
                       requires=[f"karellen-llvm-core=={pkgr.version}"],
+                      extras={},
                       keywords=["LLVM", "lldb", "debugger"]), None)
 
     pkgr.build("install")

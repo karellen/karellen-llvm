@@ -13,8 +13,8 @@ CMAKE_VERSION = "3.30.3"
 NINJA_VERSION = "1.12.1"
 
 DOCKER_BASES = {
-    "quay.io/pypa/manylinux2014_x86_64:latest": (
-        "manylinux2014", f'export PYTHON_BIN="$(echo /opt/python/cp{PYTHON_VERSION}*)/bin"'
+    "ghcr.io/karellen/manylinux2014_x86_64:latest": (
+        "manylinux2014", f'export PYTHON_BIN="$(echo /opt/python/cp{PYTHON_VERSION}*-shared*)/bin"'
                          ' && export PATH="$PYTHON_BIN:$PATH"'
                          f" && curl -Ls https://github.com/ccache/ccache/releases/download/v{CCACHE_VERSION}/ccache-{CCACHE_VERSION}-linux-x86_64.tar.xz | tar -xv --xz -C /tmp"
                          " && cd /tmp/ccache* && make install"
@@ -92,12 +92,8 @@ for docker_img, docker_settings in DOCKER_BASES.items():
                             f" && chown {uname}:{gname} /build"
                             f" && chown {uname}:{gname} {udir}"
                             f" && chown {uname}:{gname} {ccache_dir}"
-                            f' && export PYTHON_BIN="$(echo /opt/python/cp{PYTHON_VERSION}*)/bin"'
+                            f' && export PYTHON_BIN="$(echo /opt/python/cp{PYTHON_VERSION}*-shared*)/bin"'
                             f' && export PATH="$PYTHON_BIN:$PATH"'
-                            f' && export PYTHON_VERSION="$("$PYTHON_BIN/python" -c \'import sys; print(".".join(map(str, sys.version_info[:2])))\')"'
-                            f' && ln -s "$PYTHON_BIN/python" "$(echo -n $($PYTHON_BIN/python3-config --prefix)/lib/libpython3.so)"'
-                            f' && ln -s "$PYTHON_BIN/python" "$(echo -n $($PYTHON_BIN/python3-config --prefix)/lib/libpython$PYTHON_VERSION.so)"'
-                            f' && ln -s "$PYTHON_BIN/python" "$(echo -n $($PYTHON_BIN/python3-config --prefix)/lib/libpython$PYTHON_VERSION.so.1.0)"'
                             f" && cd /build"
                             f" && pip install -r requirements.txt"
                             f" && su -m {uname} {run_script}"
