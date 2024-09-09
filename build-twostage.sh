@@ -28,7 +28,8 @@ rm -rf "$BUILD_DIR/"* || true
 rm -rf "$TARGET_DIR/"* || true
 
 PROJECT_VERSION="$(./version_extractor.py -m cmake -d "$SOURCE_DIR")"
-PARALLEL_JOBS="$(python -c 'from subprocess import check_output; print(int(max(2, int(check_output(["nproc"], universal_newlines=True))/2 - 2)))')"
+PARALLEL_COMPILE_JOBS="$(python -c 'from subprocess import check_output; print(max(2, int(int(check_output(["nproc"], universal_newlines=True))/2 - 2)))')"
+PARALLEL_LINK_JOBS="$(python -c 'from subprocess import check_output; print(max(1, int(int(check_output(["nproc"], universal_newlines=True))/8)))')"
 cmake3 -G Ninja \
   -Wno-dev \
   $PROJECT_VERSION \
@@ -37,7 +38,8 @@ cmake3 -G Ninja \
   -DPYTHON_HOME="$(python -c 'import sys; print(sys.exec_prefix)')" \
   -DPYTHON_EXECUTABLE="$(python -c 'import sys; print(sys.executable)')" \
   -DPython3_EXECUTABLE="$(python -c 'import sys; print(sys.executable)')" \
-  -DLLVM_PARALLEL_COMPILE_JOBS="$PARALLEL_JOBS" \
+  -DLLVM_PARALLEL_COMPILE_JOBS="$PARALLEL_COMPILE_JOBS" \
+  -DLLVM_PARALLEL_LINK_JOBS="$PARALLEL_LINK_JOBS" \
   -C "$LLVM_DISTRO_CONF" \
   -S "$SOURCE_DIR" -B "$BUILD_DIR"
 
