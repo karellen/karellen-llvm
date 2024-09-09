@@ -9,12 +9,12 @@ from subprocess import Popen
 
 PYTHON_VERSION = "312"
 CCACHE_VERSION = "4.10.2"
-CMAKE_VERSION = "3.30.2"
+CMAKE_VERSION = "3.30.3"
 NINJA_VERSION = "1.12.1"
 
 DOCKER_BASES = {
-    "quay.io/pypa/manylinux2014_x86_64:latest": (
-        "manylinux2014", f'export PYTHON_BIN="$(echo /opt/python/cp{PYTHON_VERSION}*)/bin"'
+    "ghcr.io/karellen/manylinux2014_x86_64:latest": (
+        "manylinux2014", f'export PYTHON_BIN="$(echo /opt/python/cp{PYTHON_VERSION}*-shared*)/bin"'
                          ' && export PATH="$PYTHON_BIN:$PATH"'
                          f" && curl -Ls https://github.com/ccache/ccache/releases/download/v{CCACHE_VERSION}/ccache-{CCACHE_VERSION}-linux-x86_64.tar.xz | tar -xv --xz -C /tmp"
                          " && cd /tmp/ccache* && make install"
@@ -59,7 +59,7 @@ ccache_dir = jp(udir, ".ccache")
 
 for docker_img, docker_settings in DOCKER_BASES.items():
     docker_suffix, init_script = docker_settings
-    cmd_line = ["docker", "run", "--rm", "-i"]
+    cmd_line = ["docker", "run", "--pull", "always", "--rm", "-i"]
     for mf in MAPPED_FILES:
         cmd_line.extend(["-v", "%s:%s:%s" % (ap(mf[0]), mf[1] or jp("/build", mf[0]), mf[2])])
     for md in MAPPED_DIRS:
@@ -92,12 +92,8 @@ for docker_img, docker_settings in DOCKER_BASES.items():
                             f" && chown {uname}:{gname} /build"
                             f" && chown {uname}:{gname} {udir}"
                             f" && chown {uname}:{gname} {ccache_dir}"
-                            f' && export PYTHON_BIN="$(echo /opt/python/cp{PYTHON_VERSION}*)/bin"'
+                            f' && export PYTHON_BIN="$(echo /opt/python/cp{PYTHON_VERSION}*-shared*)/bin"'
                             f' && export PATH="$PYTHON_BIN:$PATH"'
-                            f' && export PYTHON_VERSION="$("$PYTHON_BIN/python" -c \'import sys; print(".".join(map(str, sys.version_info[:2])))\')"'
-                            f' && ln -s "$PYTHON_BIN/python" "$(echo -n $($PYTHON_BIN/python3-config --prefix)/lib/libpython3.so)"'
-                            f' && ln -s "$PYTHON_BIN/python" "$(echo -n $($PYTHON_BIN/python3-config --prefix)/lib/libpython$PYTHON_VERSION.so)"'
-                            f' && ln -s "$PYTHON_BIN/python" "$(echo -n $($PYTHON_BIN/python3-config --prefix)/lib/libpython$PYTHON_VERSION.so.1.0)"'
                             f" && cd /build"
                             f" && pip install -r requirements.txt"
                             f" && su -m {uname} {run_script}"
