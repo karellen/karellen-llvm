@@ -51,13 +51,14 @@ def get_version(mode: Union[str, Path], git_dir: Union[str, Path]):
                     major, minor, patch, rc = LLVM_VERSION_RE.findall(tag)[0]
 
                 if mode == "python":
-                    release = None
+                    release = 0
                     if exists(".release"):
                         with open(".release", "rt") as f:
-                            release = f.read().strip()
-                    return (f"{major}.{minor}.{patch}{f'.{release}' if release else ''}"
+                            release = int(f.read().strip() or 0)
+                    return (f"{major}.{minor}.{patch}"
                             f"{f'{rc}' if rc else ''}"
                             f"{f'.post{post_commits}' if post_commits else ''}"
+                            f"{f'+{release}' if release else ''}"
                             )
                 elif mode == "cmake":
                     return (f"-DLLVM_VERSION_MAJOR={major} "
