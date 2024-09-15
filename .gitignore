@@ -109,3 +109,4 @@ llvm.*.build/
 llvm.*.bin/
 llvm.*.build.*/
 llvm.*.bin.*/
+packager.record

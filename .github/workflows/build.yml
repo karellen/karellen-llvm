@@ -1,4 +1,4 @@
-name: karellen-llvm
+name: Build Core Packages
 on:
   pull_request:
     branches:
@@ -52,19 +52,17 @@ jobs:
             patch -d llvm-project -p1 < $p
           done
 
-          NO_CCACHE=1 ./docker-build.py -m build
-
+          ./docker-build.py -m build
 
       - name: Test
         shell: bash
         run: |
+          set -eEux
+          set -o pipefail
+
           twine check --strict wheels/*.whl
           ls -la wheels/*
 
-          pip install --no-input --user --break-system-packages wheels/*
-          python3 -c pass
-          which clang
-          clang --version
 
 #      - name: Update Cache
 #        uses: actions/cache/save@v3

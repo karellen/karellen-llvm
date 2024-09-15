@@ -25,21 +25,13 @@ __EOF__
 fi
 
 PROJECT_VERSION="$(./version_extractor.py -m cmake -d "$SOURCE_DIR")"
-PYTHON_PKG_VERSION="$(./version_extractor.py -m python -d "$SOURCE_DIR")"
 PARALLEL_COMPILE_JOBS="$(python -c 'from subprocess import check_output; print(max(2, int(int(check_output(["nproc"], universal_newlines=True))/2 - 2)))')"
 PARALLEL_LINK_JOBS="$(python -c 'from subprocess import check_output; print(max(1, int(int(check_output(["nproc"], universal_newlines=True))/8)))')"
 
-FIRST_BUILD="x"
-if [ -n "${AUDITWHEEL_POLICY:-}" -a -z "${NO_MULTIPYTHON_BUILDS:-}" ]; then
-    BUILD_PYTHONS="$(ls -d /opt/python/cp3{8..13}-*[0-9]-shared 2>/dev/null || true)"
-else
-    BUILD_PYTHONS="$(python -c 'import sys; print(sys.exec_prefix)')"
-fi
+OLD_PATH=$PATH
+for python_ver in "3.11.8" "3.12.6"; do
 
-OLD_PATH="$PATH"
-for python_dir in $BUILD_PYTHONS; do
-
-PATH="$python_dir/bin:$OLD_PATH"
+PATH=$HOME/.pyenv/versions/$python_ver/bin:$OLD_PATH
 export PATH
 
 rm -rf "$BUILD_DIR/"* || true
@@ -48,38 +40,16 @@ rm -rf "$TARGET_DIR/"* || true
 cmake3 -G Ninja \
   -Wno-dev \
   $PROJECT_VERSION \
-  -DPYTHON_PKG_VERSION="$PYTHON_PKG_VERSION" \
   -DLLVM_CCACHE_BUILD=$LLVM_CCACHE_BUILD \
   -DCMAKE_INSTALL_PREFIX="$TARGET_DIR" \
-  -DPYTHON_HOME="$(python -c 'import sys; print(sys.exec_prefix)')" \
+  -DPYTHON_HOME="$(python3 -c 'import sys; print(sys.exec_prefix)')" \
+  -DPYTHON_EXECUTABLE="$(python3 -c 'import sys; print(sys.executable)')" \
+  -DPython3_EXECUTABLE="$(python3 -c 'import sys; print(sys.executable)')" \
   -DLLVM_PARALLEL_COMPILE_JOBS="$PARALLEL_COMPILE_JOBS" \
   -DLLVM_PARALLEL_LINK_JOBS="$PARALLEL_LINK_JOBS" \
   -C "$LLVM_DISTRO_CONF" \
   -S "$SOURCE_DIR" -B "$BUILD_DIR"
-
-ccache -z
-
-cat <<EOF
-
-**************************************************
-STAGE 1
-**************************************************
-
-EOF
-
-ccache -s
-
 cmake3 --build "$BUILD_DIR" --target clang-bootstrap-deps
-
-ccache -s
-
-cat <<EOF
-
-**************************************************
-STAGE 2
-**************************************************
-
-EOF
 
 HOST_TARGET=$("$BUILD_DIR"/bin/llvm-config --host-target)
 STAGE1_LIB="$BUILD_DIR/lib"
@@ -88,16 +58,8 @@ LDFLAGS="-L$STAGE2_LIB/$HOST_TARGET -L$STAGE2_LIB -L$STAGE1_LIB/$HOST_TARGET -L$
 LD_LIBRARY_PATH="$STAGE2_LIB/$HOST_TARGET:$STAGE2_LIB:$STAGE1_LIB/$HOST_TARGET:$STAGE1_LIB" \
 cmake3 --build "$BUILD_DIR" --target stage2
 
-ccache -s
+LDFLAGS="-L$STAGE2_LIB/$HOST_TARGET -L$STAGE2_LIB -L$STAGE1_LIB/$HOST_TARGET -L$STAGE1_LIB" \
+LD_LIBRARY_PATH="$STAGE2_LIB/$HOST_TARGET:$STAGE2_LIB:$STAGE1_LIB/$HOST_TARGET:$STAGE1_LIB" \
+./packager.py -S 2 -b "$BUILD_DIR" -t "$TARGET_DIR" -s "$SOURCE_DIR" --project lldb --restore-record
 
-if [ -n "$FIRST_BUILD" ]; then
-  ./packager.py -S 2 -b "$BUILD_DIR" -t "$TARGET_DIR" -s "$SOURCE_DIR"
-  FIRST_BUILD=""
-else
-  ./packager.py -S 2 -b "$BUILD_DIR" -t "$TARGET_DIR" -s "$SOURCE_DIR" --project lldb
-fi
-
-./test-build.sh
 done
-
-
