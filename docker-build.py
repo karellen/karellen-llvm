@@ -14,7 +14,7 @@ NINJA_VERSION = "1.12.1"
 
 DOCKER_BASES = {
     "ghcr.io/karellen/manylinux2014_x86_64:latest": (
-        "manylinux2014", f'export PYTHON_BIN="$(echo /opt/python/cp{PYTHON_VERSION}*-shared*)/bin"'
+        "manylinux2014", f'export PYTHON_BIN="$(echo /opt/python/cp{PYTHON_VERSION}-cp{PYTHON_VERSION}-shared*)/bin"'
                          ' && export PATH="$PYTHON_BIN:$PATH"'
                          f" && curl -Ls https://github.com/ccache/ccache/releases/download/v{CCACHE_VERSION}/ccache-{CCACHE_VERSION}-linux-x86_64.tar.xz | tar -xv --xz -C /tmp"
                          " && cd /tmp/ccache* && make install"
@@ -34,11 +34,12 @@ MAPPED_FILES = [
     ("package-twostage.sh", None, "ro"),
     ("packager.py", None, "ro"),
     ("version_extractor.py", None, "ro"),
-    ("requirements.txt", None, "ro")
+    ("requirements.txt", None, "ro"),
+    ("test-build.sh", None, "ro"),
 ]
 
 MAPPED_DIRS = ["llvm.twostage.build"]
-ENV_VARS = ["NO_CCACHE"]
+ENV_VARS = ["NO_CCACHE", "NO_MULTIPYTHON_BUILDS"]
 
 
 parser = argparse.ArgumentParser()
@@ -92,10 +93,10 @@ for docker_img, docker_settings in DOCKER_BASES.items():
                             f" && chown {uname}:{gname} /build"
                             f" && chown {uname}:{gname} {udir}"
                             f" && chown {uname}:{gname} {ccache_dir}"
-                            f' && export PYTHON_BIN="$(echo /opt/python/cp{PYTHON_VERSION}*-shared*)/bin"'
+                            f' && export PYTHON_BIN="$(echo /opt/python/cp{PYTHON_VERSION}-cp{PYTHON_VERSION}-shared*)/bin"'
                             f' && export PATH="$PYTHON_BIN:$PATH"'
                             f" && cd /build"
-                            f" && pip install -r requirements.txt"
+                             ' && for python_dir in $(ls -d /opt/python/cp3{8..13}-*[0-9]-shared 2>/dev/null || true); do $python_dir/bin/python3 -m pip install --root-user-action ignore -r requirements.txt; done'
                             f" && su -m {uname} {run_script}"
                             )
                 out_f.flush()

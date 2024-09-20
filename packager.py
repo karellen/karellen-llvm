@@ -2,19 +2,21 @@
 
 import argparse
 import os
+import pickle
 import sys
 from enum import IntFlag, auto
 from functools import lru_cache, partial
+from genericpath import exists
 from itertools import chain
 from pathlib import Path
+from pprint import pformat
 from shutil import rmtree, move
 from subprocess import check_call, check_output
 from tempfile import TemporaryDirectory
 from typing import Union
 
-from elftools.elf.elffile import ELFFile, ELFError
-
 import version_extractor
+from elftools.elf.elffile import ELFFile, ELFError
 
 TOOLCHAIN_TOOLS = ["llvm-ar",
                    "llvm-cov",
@@ -48,14 +50,15 @@ TOOLCHAIN_TOOLS = ["llvm-ar",
                    "strip",
                    ]
 
-LLDB_TOOLS = ["lldb",
+LLDB_TOOLS = ["liblldb",
+              "lldb",
               "lldb-argdumper",
               "lldb-dap",
               "lldb-instr",
               "lldb-python-scripts",
               "lldb-server",
               "lldb-test",
-              "lldbIntelFeatures"
+              "lldbIntelFeatures",
               ]
 
 
@@ -70,6 +73,10 @@ parser.add_argument("-S", "--stage", type=int, choices=[1, 2], required=True)
 parser.add_argument("-b", "--build-dir", type=Path, help="LLVM build directory", required=True)
 parser.add_argument("-t", "--target-dir", type=Path, help="LLVM binary directory", required=True)
 parser.add_argument("-s", "--source-dir", type=Path, default=Path("llvm-project"), help="LLVM project source")
+parser.add_argument("-p", "--project", nargs="+", type=str, choices=["core", "toolchain", "lldb", "clang"],
+                    default=["core", "toolchain", "lldb", "clang"], help="projects to build")
+parser.add_argument("-r", "--record", type=Path, default=Path("packager.record"))
+parser.add_argument("--restore-record", action="store_true", default=False, help="whether to restore the record")
 
 all_excluded = []
 
@@ -110,7 +117,9 @@ def rm_dir_contents(d: Path):
 TEMPLATE = """#!/usr/bin/env python
 #   -*- coding: utf-8 -*-
 import os
+import re
 import sys
+from glob import glob
 from os import walk, environ, mkdir, rename
 from os.path import abspath, join as jp, exists
 from shutil import rmtree
@@ -119,6 +128,7 @@ from setuptools import setup, find_namespace_packages
 from wheel_axle.bdist_axle import BdistAxle
 
 PYTHON_SRC_DIR = "python-src"
+NATIVE_RE = re.compile(r".+\\.(so|sl|pyd|a|o|lib|dll)$")
 
 def get_data_files(src_dir):
     current_path = abspath(src_dir)
@@ -142,7 +152,16 @@ else:
 
 data_files = list(get_data_files("."))
 
-sys.argv.extend(("--root-is-pure", "false", "--abi-tag", "none", "--python-tag", "py3"))
+sys.argv.extend(("--root-is-pure", "false"))
+
+contains_native_files = False
+for f in glob(f"{PYTHON_SRC_DIR}/**", recursive=True):
+    if contains_native_files := NATIVE_RE.fullmatch(f):
+        break
+
+if not contains_native_files:
+    sys.argv.extend(("--abi-tag", "none", "--python-tag", "py3"))
+
 plat = os.environ.get("AUDITWHEEL_PLAT", None)
 if plat:
     sys.argv.extend(("-p", plat))
@@ -162,10 +181,10 @@ setup(
         'Topic :: Software Development :: Build Tools',
     ],
     keywords=%(keywords)r,
-    author="Karellen, Inc.",
-    author_email="supervisor@karellen.co",
-    maintainer="Arcadiy Ivanov",
-    maintainer_email="arcadiy@karellen.co",
+    author='Karellen, Inc.',
+    author_email='supervisor@karellen.co',
+    maintainer='Arcadiy Ivanov',
+    maintainer_email='arcadiy@karellen.co',
 
     license='Apache License, Version 2.0',
 
@@ -178,11 +197,11 @@ setup(
     scripts=[],
     packages=find_namespace_packages(where=PYTHON_SRC_DIR),
     package_dir={'': PYTHON_SRC_DIR},
+    package_data={'': ['*']},
     namespace_packages=[],
     py_modules=[],
     entry_points={},
     data_files=data_files,
-    package_data={},
     install_requires=%(requires)r,
     extras_require=%(extras)r,
     dependency_links=[],
@@ -194,15 +213,16 @@ setup(
 
 
 class Packager:
-    def __init__(self, stage: int, source_dir: Path, build_dir: Path, target_dir: Path,
+    def __init__(self, stage: int, source_dir: Path, build_dir: Path, target_dir: Path, record: Path,
                  wheel_dir: Path = Path("wheels")):
         self.stage = stage
         self.source_dir = source_dir
         self.build_dir = build_dir
         self.target_dir = target_dir
+        self.record = record
         self.target_dir_debug = target_dir.with_suffix(target_dir.suffix + ".debug")
         self.wheel_dir = wheel_dir
-        self.processed: list[Path] = []
+        self.processed: set[Path|str] = set()
         self._call_env = dict(os.environ)
         self._llvm_config = self.build_dir / "bin" / "llvm-config"
 
@@ -233,9 +253,17 @@ class Packager:
         ninja.extend(cmds)
         self.call(*ninja)
 
-    def record_processed(self):
+    def record_processed(self, store_record=True):
         target_dir = self.target_dir
-        self.processed.extend(f for f in target_dir.glob("**/*") if not f.is_dir())
+        self.processed.update(f for f in target_dir.glob("**/*") if not f.is_dir())
+        if store_record:
+            with open(self.record, "wb") as f:
+                pickle.dump(self.processed, f)
+
+    def restore_record(self):
+        if exists(self.record):
+            with open(self.record, "rb") as f:
+                self.processed = pickle.load(f)
 
     def delete_in_target(self, pattern):
         log(f"Deleting {pattern}...")
@@ -279,7 +307,14 @@ class Packager:
                     target_debug_f.chmod(0o644)
 
     def delete_processed(self, delete_empty_dirs=True):
-        log(f"Deleting previously captured files... {self.processed}")
+        target_dir = self.target_dir
+        def yield_processed():
+            for p in self.processed:
+                if isinstance(p, str):
+                    yield from target_dir.glob(p)
+                else:
+                    yield p
+        log(f"Deleting previously captured files... {pformat(list(str(f) for f in sorted(self.processed)))}")
         for p in self.processed:
             if p.is_symlink() or p.exists() and not p.is_dir():
                 log(f"\tDeleting {p}...")
@@ -294,7 +329,7 @@ class Packager:
                     except OSError:
                         pass
 
-    def package(self, package_vars, debug_package_vars=None):
+    def package(self, package_vars, *args, debug_package_vars=None):
         def _package(package_dir, package_vars):
             setup_file = TEMPLATE % package_vars
             with TemporaryDirectory() as tmp_dir:
@@ -302,7 +337,7 @@ class Packager:
                 with open(tmp_setup, "wt") as f:
                     f.write(setup_file)
 
-                self.call(sys.executable, tmp_setup, "bdist_wheel", cwd=package_dir)
+                self.call(sys.executable, tmp_setup, "bdist_wheel", *args, cwd=package_dir)
             for f in package_dir.glob("dist/*.whl"):
                 move(f, self.wheel_dir / f.name)
 
@@ -315,67 +350,80 @@ class Packager:
 
 def main():
     args = parser.parse_args()
-    pkgr = Packager(args.stage, args.source_dir, args.build_dir, args.target_dir)
-    pkgr.prepare()
+    pkgr = Packager(args.stage, args.source_dir, args.build_dir, args.target_dir,
+                    args.record)
 
-    pkgr.build("install-cxx", "install-cxxabi", "install-unwind")
-    pkgr.build("install-LLVM", "install-LTO", "install-Remarks")
+    log(f"Building projects: {', '.join(args.project)}")
+    if args.restore_record:
+        log(f"Restoring processed files record from {args.record!s}")
+        pkgr.restore_record()
 
-    pkgr.delete_in_target("**/*.a")
-    pkgr.delete_in_target("include")
-    pkgr.record_processed()
-    pkgr.process_elf()
+    for project in args.project:
+        pkgr.prepare()
 
-    pkgr.package(dict(name="karellen-llvm-core",
-                      version=pkgr.version,
-                      description="Karellen LLVM core libraries",
-                      long_description="Contains LLVM, LTO, Remarks, libc++, libc++abi, and libunwind",
-                      keywords=["LLVM", "libc++", "libcxx"],
-                      requires=[], extras={}),
-                 dict(name="karellen-llvm-core-debug",
-                      description="Karellen LLVM core libraries (debug info)",
-                      long_description="Contains LLVM, LTO, Remarks, libc++, libc++abi, and libunwind debug info",
-                      requires=[f"karellen-llvm-core=={pkgr.version}"],
-                      extras={}
-                      ))
+        if project == "core":
+            pkgr.build("install-cxx", "install-cxxabi", "install-unwind")
+            pkgr.build("install-LLVM", "install-LTO", "install-Remarks")
 
-    pkgr.build(*map(lambda x: f"install-{x}", TOOLCHAIN_TOOLS))
-    pkgr.delete_processed()
-    pkgr.record_processed()
-    pkgr.process_elf(extract=False)
-    pkgr.package(dict(name="karellen-llvm-toolchain-tools",
-                      version=pkgr.version,
-                      description="Karellen LLVM Toolchain Tools",
-                      long_description="Self-contained LLVM toolchain tools",
-                      requires=[f"karellen-llvm-core=={pkgr.version}"],
-                      extras={},
-                      keywords=["LLVM", "toolchain", "tools"]), None)
+            pkgr.delete_in_target("**/*.a")
+            pkgr.delete_in_target("include")
+            pkgr.record_processed()
+            pkgr.process_elf()
 
-    pkgr.build(*map(lambda x: f"install-{x}", LLDB_TOOLS))
-    pkgr.delete_processed()
-    pkgr.record_processed()
-    pkgr.process_elf(extract=False)
-    pkgr.package(dict(name="karellen-llvm-lldb",
-                      version=pkgr.version,
-                      description="Karellen LLDB infrastructure",
-                      long_description="Self-contained LLVM LLDB infrastructure",
-                      requires=[f"karellen-llvm-core=={pkgr.version}"],
-                      extras={},
-                      keywords=["LLVM", "lldb", "debugger"]), None)
+            pkgr.package(dict(name="karellen-llvm-core",
+                              version=pkgr.version,
+                              description="Karellen LLVM core libraries",
+                              long_description="Contains LLVM, LTO, Remarks, libc++, libc++abi, and libunwind",
+                              keywords=["LLVM", "libc++", "libcxx"],
+                              requires=[], extras={}),
+                         debug_package_vars=dict(name="karellen-llvm-core-debug",
+                              description="Karellen LLVM core libraries (debug info)",
+                              long_description="Contains LLVM, LTO, Remarks, libc++, libc++abi, and libunwind debug info",
+                              requires=[f"karellen-llvm-core=={pkgr.version}"],
+                              extras={}
+                              ))
+        elif project == "toolchain":
+            pkgr.build(*map(lambda x: f"install-{x}", TOOLCHAIN_TOOLS))
+            pkgr.delete_processed()
+            pkgr.record_processed()
+            pkgr.process_elf(extract=False)
+            pkgr.package(dict(name="karellen-llvm-toolchain-tools",
+                              version=pkgr.version,
+                              description="Karellen LLVM Toolchain Tools",
+                              long_description="Self-contained LLVM toolchain tools",
+                              requires=[f"karellen-llvm-core=={pkgr.version}"],
+                              extras={},
+                              keywords=["LLVM", "toolchain", "tools"]))
 
-    pkgr.build("install")
-    pkgr.delete_processed()
-    pkgr.process_elf(extract=False)
-    pkgr.delete_in_target("lib/*a")
-    pkgr.delete_in_target("include/clang*")
-    pkgr.delete_in_target("include/lld*")
-    pkgr.package(dict(name="karellen-llvm-clang",
-                      version=pkgr.version,
-                      description="Karellen Clang compiler infrastructure",
-                      long_description="Self-contained LLVM Clang compiler infrastructure",
-                      requires=[f"karellen-llvm-core=={pkgr.version}"],
-                      extras={"tools": [f"karellen-llvm-toolchain-tools=={pkgr.version}"]},
-                      keywords=["LLVM", "clang", "c", "c++", "compiler"]), None)
+        elif project == "lldb":
+            pkgr.build(*map(lambda x: f"install-{x}", LLDB_TOOLS))
+            pkgr.record_processed()
+            pkgr.process_elf(extract=False)
+            pkgr.package(dict(name="karellen-llvm-lldb",
+                              version=pkgr.version,
+                              description="Karellen LLDB infrastructure",
+                              long_description="Self-contained LLVM LLDB infrastructure",
+                              requires=[f"karellen-llvm-clang=={pkgr.version}"],
+                              extras={},
+                              keywords=["LLVM", "lldb", "debugger"]), "--require-libpython", "true")
+
+        elif project == "clang":
+            pkgr.build("install")
+            pkgr.delete_processed()
+            pkgr.record_processed()
+            pkgr.process_elf(extract=False)
+            pkgr.delete_in_target("lib/*a")
+            pkgr.delete_in_target("include/clang*")
+            pkgr.delete_in_target("include/lld*")
+            pkgr.package(dict(name="karellen-llvm-clang",
+                              version=pkgr.version,
+                              description="Karellen Clang compiler infrastructure",
+                              long_description="Self-contained LLVM Clang compiler infrastructure",
+                              requires=[f"karellen-llvm-core=={pkgr.version}"],
+                              extras={"tools": [f"karellen-llvm-toolchain-tools=={pkgr.version}"]},
+                              keywords=["LLVM", "clang", "c", "c++", "compiler"]))
+        else:
+            raise RuntimeError(f"unknown project {project}")
 
 
 if __name__ == "__main__":
