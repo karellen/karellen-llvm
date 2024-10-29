@@ -83,4 +83,4 @@ jobs:
           twine upload --non-interactive --skip-existing wheels/!(*debug*).whl
 
           shopt -u extglob
-
+          gh release create v$(./version-extrator.py -d llvm-project -m python) --generate-notes wheels/*.whl
