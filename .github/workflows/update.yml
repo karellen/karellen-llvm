@@ -19,6 +19,15 @@ jobs:
           set -o pipefail
           shopt -s extglob
 
+          BRANCHES=$(git ls-remote $GITHUB_SERVER_URL/$GITHUB_REPOSITORY 'auto-update-*' 2>/dev/null | { grep -o 'refs/heads/auto-update-.*' || true; } | sed 's/refs\/heads\///' | jq -Rn '{branches: [inputs]}')
+          PRS=$(gh -R $GITHUB_REPOSITORY pr list --state closed --limit 100000 --state closed --json number,headRefName --jq '{prs: .}')
+          CLOSED_PRS_WITH_BRANCHES=$(jq -s 'add' <(echo "$BRANCHES") <(echo "$PRS") | jq -c '[.branches[] as $branches | .prs[] | select(.headRefName | IN($branches))]')
+
+          echo "$CLOSED_PRS_WITH_BRANCHES" | jq -r '.[] | .headRefName' | while read -r branch_name; do
+              gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$branch_name"
+              echo "Deleted branch $branch_name"
+          done
+
           CURRENT_BRANCH="$(git ls-remote $GITHUB_SERVER_URL/$GITHUB_REPOSITORY 'auto-update-*' 2>/dev/null | { grep -o 'refs/heads/auto-update-.*' || true; } | sed 's/refs\/heads\///')"
           if [ -n "$CURRENT_BRANCH" ] ; then
             echo "# Pending auto-update branch $CURRENT_BRANCH already exists!" >> $GITHUB_STEP_SUMMARY
