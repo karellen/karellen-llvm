@@ -13,7 +13,7 @@ LLVM_VERSION_RE = re.compile(r"(\d+).(\d+).(\d+)(?:-(rc\d+))?")
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument("-m", "--mode", choices=["python", "cmake"], default="python")
+parser.add_argument("-m", "--mode", choices=["python", "cmake", "tag"], default="python")
 parser.add_argument("-d", "--directory", type=Path, default=".")
 
 
@@ -42,7 +42,9 @@ def get_version(mode: Union[str, Path], git_dir: Union[str, Path]):
                 post_commits += 1
             else:
                 # print(commit_id, tag, post_commits)
+                init_tag = False
                 if tag.endswith("-init"):
+                    init_tag = True
                     major = tag[:-5]
                     minor = patch = 0
                     rc = f".dev{post_commits}"
@@ -65,6 +67,11 @@ def get_version(mode: Union[str, Path], git_dir: Union[str, Path]):
                             f"-DLLVM_VERSION_MINOR={minor} "
                             f"-DLLVM_VERSION_PATCH={patch} "
                             )
+                elif mode == "tag":
+                    if init_tag:
+                        return f"llvmorg-{major}-init"
+                    else:
+                        return f"llvmorg-{major}.{minor}.{patch}{f'-{rc}' if rc else ''}"
                 else:
                     raise ValueError(f"mode: {mode}")
 

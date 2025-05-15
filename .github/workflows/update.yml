@@ -74,8 +74,18 @@ jobs:
           git submodule sync --recursive
           git submodule update --init --force --recursive
           CURRENT_VERSION="$(./version_extractor.py -m python -d llvm-project)"
+          CURRENT_TAG="$(./version_extractor.py -m tag -d llvm-project)"
           git submodule update --init --remote --recursive
           NEW_VERSION="$(./version_extractor.py -m python -d llvm-project)"
+          NEW_TAG="$(./version_extractor.py -m tag -d llvm-project)"
+
+          if [ "$CURRENT_TAG" != "$NEW_TAG" ]; then
+              pushd llvm-project
+              git checkout "$NEW_TAG"
+              popd
+              NEW_VERSION="$(./version_extractor.py -m python -d llvm-project)"
+          fi
+
           if [ "$CURRENT_VERSION" != "$NEW_VERSION" ]; then
               echo "# Current version: $CURRENT_VERSION" >> $GITHUB_STEP_SUMMARY
               echo "# New version: $NEW_VERSION" >> $GITHUB_STEP_SUMMARY
