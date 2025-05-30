@@ -21,14 +21,14 @@ parser.add_argument("--skip-current-tag", action="store_true", default=False,
 
 def main():
     args = parser.parse_args()
-    version = get_version(args.mode, args.directory, args.skip_current_tag)
+    version = get_version(args.mode, args.directory, skip_current_tag=args.skip_current_tag)
     if not version:
         print("Something is wrong! Unable to find a version!", file=sys.stderr)
         return 1
     print(version)
 
 
-def get_version(mode: Union[str, Path], git_dir: Union[str, Path], skip_current_tag: bool):
+def get_version(mode: Union[str, Path], git_dir: Union[str, Path], skip_current_tag:bool = False):
     start_commit = "HEAD"
     continue_commit = start_commit
     post_commits = 0
