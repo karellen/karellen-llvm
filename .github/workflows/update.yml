@@ -108,7 +108,7 @@ jobs:
               git config --global user.name "Karellen Supervisor"
 
               git checkout -b "$BRANCH_NAME"
-              git commit -a -m "$TITLE"
+              git commit -a -m "$TITLE" --allow-empty
               git push --set-upstream origin "$BRANCH_NAME"
 
               PR_URL="$(gh pr create --head "$BRANCH_NAME" --base master --fill --no-maintainer-edit)"
