@@ -75,11 +75,22 @@ jobs:
           git submodule update --init --force --recursive
           CURRENT_VERSION="$(./version_extractor.py -m python -d llvm-project)"
           CURRENT_TAG="$(./version_extractor.py -m tag -d llvm-project)"
+          IS_CURRENT_TAG="$(./version_extractor.py -m is-tag -d llvm-project)"
+          if [ -n "IS_CURRENT_TAG" ]; then
+              if [ -z "$(grep "^v$(./version_extractor.py -d llvm-project -m python)$" <(git tag -l))" ]; then
+                  echo "## Current version is an unreleased tag $CURRENT_VERSION. Will force tag release!" >> $GITHUB_STEP_SUMMARY
+                  CURRENT_VERSION="$(./version_extractor.py -m python -d llvm-project --skip-current-tag)"
+                  CURRENT_TAG="$(./version_extractor.py -m tag -d llvm-project --skip-current-tag)"
+                  IS_CURRENT_TAG=""
+              fi
+          fi
+
           git submodule update --init --remote --recursive
           NEW_VERSION="$(./version_extractor.py -m python -d llvm-project)"
           NEW_TAG="$(./version_extractor.py -m tag -d llvm-project)"
 
           if [ "$CURRENT_TAG" != "$NEW_TAG" ]; then
+              echo "## Detected a tag flip from $CURRENT_TAG to $NEW_TAG. Releasing the $NEW_TAG first!" >> $GITHUB_STEP_SUMMARY
               pushd llvm-project
               git checkout "$NEW_TAG"
               popd

@@ -13,20 +13,22 @@ LLVM_VERSION_RE = re.compile(r"(\d+).(\d+).(\d+)(?:-(rc\d+))?")
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument("-m", "--mode", choices=["python", "cmake", "tag"], default="python")
+parser.add_argument("-m", "--mode", choices=["python", "cmake", "tag", "is-tag"], default="python")
 parser.add_argument("-d", "--directory", type=Path, default=".")
+parser.add_argument("--skip-current-tag", action="store_true", default=False,
+                    help="disregard the first tag if it's on a current commit")
 
 
 def main():
     args = parser.parse_args()
-    version = get_version(args.mode, args.directory)
+    version = get_version(args.mode, args.directory, args.skip_current_tag)
     if not version:
         print("Something is wrong! Unable to find a version!", file=sys.stderr)
         return 1
     print(version)
 
 
-def get_version(mode: Union[str, Path], git_dir: Union[str, Path]):
+def get_version(mode: Union[str, Path], git_dir: Union[str, Path], skip_current_tag: bool):
     start_commit = "HEAD"
     continue_commit = start_commit
     post_commits = 0
@@ -38,7 +40,7 @@ def get_version(mode: Union[str, Path], git_dir: Union[str, Path]):
             ["git", "log", "--pretty=%H%d", "-n100", "--decorate-refs=refs/tags", "--decorate=short", continue_commit],
             text=True, cwd=git_dir)
         for commit_id, tag in GIT_LOG_RE.findall(out):
-            if not tag:
+            if not tag or skip_current_tag and not post_commits:
                 post_commits += 1
             else:
                 # print(commit_id, tag, post_commits)
@@ -72,6 +74,10 @@ def get_version(mode: Union[str, Path], git_dir: Union[str, Path]):
                         return f"llvmorg-{major}-init"
                     else:
                         return f"llvmorg-{major}.{minor}.{patch}{f'-{rc}' if rc else ''}"
+                elif mode == "is-tag":
+                    if not post_commits:
+                        return "1"
+                    return f""
                 else:
                     raise ValueError(f"mode: {mode}")
 
