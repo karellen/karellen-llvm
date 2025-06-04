@@ -22,10 +22,11 @@ parser.add_argument("--skip-current-tag", action="store_true", default=False,
 def main():
     args = parser.parse_args()
     version = get_version(args.mode, args.directory, skip_current_tag=args.skip_current_tag)
-    if not version:
+    if not version and args.mode != "is-tag":
         print("Something is wrong! Unable to find a version!", file=sys.stderr)
         return 1
-    print(version)
+    if version:
+        print(version)
 
 
 def get_version(mode: Union[str, Path], git_dir: Union[str, Path], skip_current_tag:bool = False):
@@ -40,10 +41,10 @@ def get_version(mode: Union[str, Path], git_dir: Union[str, Path], skip_current_
             ["git", "log", "--pretty=%H%d", "-n100", "--decorate-refs=refs/tags", "--decorate=short", continue_commit],
             text=True, cwd=git_dir)
         for commit_id, tag in GIT_LOG_RE.findall(out):
+            # print(commit_id, tag, post_commits)
             if not tag or skip_current_tag and not post_commits:
                 post_commits += 1
             else:
-                # print(commit_id, tag, post_commits)
                 init_tag = False
                 if tag.endswith("-init"):
                     init_tag = True
