@@ -22,14 +22,6 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-#      - name: Restore Cache
-#        uses: actions/cache/restore@v3
-#        id: restore-ccache
-#        with:
-#          path: ccache
-#          key: primes-${{ runner.os }}-${{ github.run_id }}
-#          restore-keys: primes-${{ runner.os }}
-
       - name: Install Twine
         shell: bash
         run: |
@@ -63,15 +55,6 @@ jobs:
           twine check --strict wheels/*.whl
           ls -la wheels/*
 
-
-#      - name: Update Cache
-#        uses: actions/cache/save@v3
-#        id: save-ccache
-#        if: (success() || failure()) && github.ref_name == 'master'
-#        with:
-#          key: primes-${{ runner.os }}-${{ github.run_id }}
-#          path: ccache
-
       - name: Upload Releases
         shell: bash
         if: github.ref_name == 'master'
@@ -84,3 +67,4 @@ jobs:
 
           shopt -u extglob
           gh release create v$(./version_extractor.py -d llvm-project -m python) --generate-notes wheels/*.whl
+          ./sync-submodule-tags.sh
