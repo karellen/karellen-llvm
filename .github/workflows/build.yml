@@ -61,10 +61,10 @@ jobs:
         run: |
           set -eEux
           set -o pipefail
-          shopt -s extglob
 
-          twine upload --non-interactive --skip-existing wheels/*.whl
-
-          shopt -u extglob
           gh release create v$(./version_extractor.py -d llvm-project -m python) --generate-notes wheels/*.whl
           ./sync-submodule-tags.sh
+
+          while ! twine upload --non-interactive --skip-existing wheels/*.whl; do
+              sleep 5
+          done
