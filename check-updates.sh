@@ -26,7 +26,7 @@ while read line; do
     read -r REMOTE_SHA REMOTE_TAG <<<"$(git ls-remote --tags $SUBMODULE_URL | (grep $REMOTE_SHA || true) | sed -e 's/[\^\{\}]//g' | sed -e 's|refs/tags/||')"
     if [ -n "$REMOTE_TAG" ]; then
         echo "## Remote tag $REMOTE_TAG is present" >> $GITHUB_STEP_SUMMARY
-        REMOTE_TAG_LOCALLY_PRESENT="$(git show-ref --tags | (grep $(git rev-parse HEAD) || true) | (grep $REMOTE_TAG || true))"
+        REMOTE_TAG_LOCALLY_PRESENT="$(git show-ref --tags | (grep $REMOTE_TAG || true))"
         if [ -z "$REMOTE_TAG_LOCALLY_PRESENT" ]; then
             echo "## Remote tag $REMOTE_TAG is not present locally!" >> $GITHUB_STEP_SUMMARY
             MODULES_CHANGED="1"
