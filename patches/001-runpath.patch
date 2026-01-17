@@ -29,9 +29,10 @@ diff --git a/libcxxabi/src/CMakeLists.txt b/libcxxabi/src/CMakeLists.txt
  split_list(LIBCXXABI_LINK_FLAGS)
  
 diff --git a/llvm/cmake/modules/AddLLVM.cmake b/llvm/cmake/modules/AddLLVM.cmake
+index 1fefc2610afc..1e95792455ab 100644
 --- a/llvm/cmake/modules/AddLLVM.cmake
 +++ b/llvm/cmake/modules/AddLLVM.cmake
-@@ -2320,8 +2320,9 @@ function(llvm_setup_rpath name)
+@@ -2557,8 +2558,8 @@ function(llvm_setup_rpath name)
      # FIXME: update this when there is better solution.
      set(_install_rpath "${LLVM_LIBRARY_OUTPUT_INTDIR}" "${CMAKE_INSTALL_PREFIX}/lib${LLVM_LIBDIR_SUFFIX}" ${extra_libdir})
    elseif(UNIX)
@@ -39,8 +40,7 @@ diff --git a/llvm/cmake/modules/AddLLVM.cmake b/llvm/cmake/modules/AddLLVM.cmake
 -    set(_install_rpath "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}")
 +    set(_build_rpath "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}/${LLVM_DEFAULT_TARGET_TRIPLE}" "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}" ${extra_libdir})
 +    set(_install_rpath "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}/${LLVM_DEFAULT_TARGET_TRIPLE}" "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}")
-+
-     if(${CMAKE_SYSTEM_NAME} MATCHES "(FreeBSD|DragonFly)")
+     if("${CMAKE_SYSTEM_NAME}" MATCHES "(FreeBSD|DragonFly)")
        set_property(TARGET ${name} APPEND_STRING PROPERTY
                     LINK_FLAGS " -Wl,-z,origin ")
 diff --git a/lldb/source/API/CMakeLists.txt b/lldb/source/API/CMakeLists.txt
