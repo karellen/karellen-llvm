@@ -13,7 +13,7 @@ CMAKE_VERSION = "4.2.1"
 NINJA_VERSION = "1.13.1"
 
 DOCKER_BASES = {
-    "ghcr.io/karellen/manylinux2014_x86_64:latest": (
+    "ghcr.io/karellen/manylinux_2_28_x86_64:latest": (
         "manylinux2014", f'export PYTHON_BIN="$(echo /opt/python/cp{PYTHON_VERSION}-cp{PYTHON_VERSION}-shared*)/bin"'
                          ' && export PATH="$PYTHON_BIN:$PATH"'
                          f" && curl -Ls https://github.com/ccache/ccache/releases/download/v{CCACHE_VERSION}/ccache-{CCACHE_VERSION}-linux-x86_64.tar.xz | tar -xv --xz -C /tmp"
