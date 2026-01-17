@@ -8,9 +8,9 @@ from pwd import getpwuid
 from subprocess import Popen
 
 PYTHON_VERSION = "312"
-CCACHE_VERSION = "4.10.2"
-CMAKE_VERSION = "3.30.3"
-NINJA_VERSION = "1.12.1"
+CCACHE_VERSION = "4.12.2"
+CMAKE_VERSION = "4.2.1"
+NINJA_VERSION = "1.13.1"
 
 DOCKER_BASES = {
     "ghcr.io/karellen/manylinux2014_x86_64:latest": (
