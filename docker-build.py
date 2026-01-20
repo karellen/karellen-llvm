@@ -96,7 +96,7 @@ for docker_img, docker_settings in DOCKER_BASES.items():
                             f' && export PYTHON_BIN="$(echo /opt/python/cp{PYTHON_VERSION}-cp{PYTHON_VERSION}-shared*)/bin"'
                             f' && export PATH="$PYTHON_BIN:$PATH"'
                             f" && cd /build"
-                             ' && for python_dir in $(ls -d /opt/python/cp3{8..13}-*[0-9]-shared 2>/dev/null || true); do $python_dir/bin/python3 -m pip install --root-user-action ignore -r requirements.txt; done'
+                             ' && for python_dir in $(ls -d /opt/python/cp3{9..14}-*[0-9]-shared 2>/dev/null || true); do $python_dir/bin/python3 -m pip install --root-user-action ignore -r requirements.txt; done'
                             f" && su -m {uname} {run_script}"
                             )
                 out_f.flush()
