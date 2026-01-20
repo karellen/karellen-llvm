@@ -31,7 +31,7 @@ PARALLEL_LINK_JOBS="$(python -c 'from subprocess import check_output; print(max(
 
 FIRST_BUILD="x"
 if [ -n "${AUDITWHEEL_POLICY:-}" -a -z "${NO_MULTIPYTHON_BUILDS:-}" ]; then
-    BUILD_PYTHONS="$(ls -d /opt/python/cp3{8..13}-*[0-9]-shared 2>/dev/null || true)"
+    BUILD_PYTHONS="$(ls -d /opt/python/cp3{9..14}-*[0-9]-shared 2>/dev/null || true)"
 else
     BUILD_PYTHONS="$(python -c 'import sys; print(sys.exec_prefix)')"
 fi

@@ -18,6 +18,5 @@ which clang
 clang --version
 which lldb
 lldb --version
-if [ "$PYTHON_VER" != "312" ]; then
-    $PYTHON -c "import lldb;"
-fi
+$PYTHON -c "import lldb;"
+

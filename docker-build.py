@@ -8,12 +8,12 @@ from pwd import getpwuid
 from subprocess import Popen
 
 PYTHON_VERSION = "312"
-CCACHE_VERSION = "4.10.2"
-CMAKE_VERSION = "3.30.3"
-NINJA_VERSION = "1.12.1"
+CCACHE_VERSION = "4.12.2"
+CMAKE_VERSION = "4.2.1"
+NINJA_VERSION = "1.13.1"
 
 DOCKER_BASES = {
-    "ghcr.io/karellen/manylinux2014_x86_64:latest": (
+    "ghcr.io/karellen/manylinux_2_28_x86_64:latest": (
         "manylinux2014", f'export PYTHON_BIN="$(echo /opt/python/cp{PYTHON_VERSION}-cp{PYTHON_VERSION}-shared*)/bin"'
                          ' && export PATH="$PYTHON_BIN:$PATH"'
                          f" && curl -Ls https://github.com/ccache/ccache/releases/download/v{CCACHE_VERSION}/ccache-{CCACHE_VERSION}-linux-x86_64.tar.xz | tar -xv --xz -C /tmp"
@@ -96,7 +96,7 @@ for docker_img, docker_settings in DOCKER_BASES.items():
                             f' && export PYTHON_BIN="$(echo /opt/python/cp{PYTHON_VERSION}-cp{PYTHON_VERSION}-shared*)/bin"'
                             f' && export PATH="$PYTHON_BIN:$PATH"'
                             f" && cd /build"
-                             ' && for python_dir in $(ls -d /opt/python/cp3{8..13}-*[0-9]-shared 2>/dev/null || true); do $python_dir/bin/python3 -m pip install --root-user-action ignore -r requirements.txt; done'
+                             ' && for python_dir in $(ls -d /opt/python/cp3{9..14}-*[0-9]-shared 2>/dev/null || true); do $python_dir/bin/python3 -m pip install --root-user-action ignore -r requirements.txt; done'
                             f" && su -m {uname} {run_script}"
                             )
                 out_f.flush()

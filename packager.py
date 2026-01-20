@@ -177,7 +177,6 @@ setup(
         'Operating System :: POSIX :: Linux',
         'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Developers',
-        'License :: OSI Approved :: Apache Software License',
         'Topic :: Software Development :: Build Tools',
     ],
     keywords=%(keywords)r,
@@ -186,7 +185,7 @@ setup(
     maintainer='Arcadiy Ivanov',
     maintainer_email='arcadiy@karellen.co',
 
-    license='Apache License, Version 2.0',
+    license = "Apache-2.0",
 
     url='https://github.com/karellen/karellen-llvm',
     project_urls={
