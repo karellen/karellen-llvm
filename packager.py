@@ -114,13 +114,11 @@ def rm_dir_contents(d: Path):
                 f.unlink()
 
 
-TEMPLATE = """#!/usr/bin/env python
-#   -*- coding: utf-8 -*-
-import os
+SETUP_PY_TEMPLATE = """\
 import re
 import sys
 from glob import glob
-from os import walk, environ, mkdir, rename
+from os import walk, mkdir, rename
 from os.path import abspath, join as jp, exists
 from shutil import rmtree
 
@@ -136,8 +134,16 @@ def get_data_files(src_dir):
         if not files:
             continue
         path_prefix = root[len(current_path) + 1:]
-        if path_prefix.endswith(".egg-info") or path_prefix.startswith(PYTHON_SRC_DIR):
+        if (path_prefix.endswith(".egg-info")
+                or path_prefix.startswith(PYTHON_SRC_DIR)
+                or path_prefix.startswith("build")
+                or path_prefix.startswith("dist")):
             continue
+        if not path_prefix:
+            files = [f for f in files
+                     if not f.endswith(("setup.py", "setup.cfg", "pyproject.toml"))]
+            if not files:
+                continue
         yield path_prefix, [jp(root, f) for f in files]
 
 
@@ -152,19 +158,28 @@ else:
 
 data_files = list(get_data_files("."))
 
-sys.argv.extend(("--root-is-pure", "false"))
-
 contains_native_files = False
 for f in glob(f"{PYTHON_SRC_DIR}/**", recursive=True):
     if contains_native_files := NATIVE_RE.fullmatch(f):
         break
 
+# Write setup.cfg dynamically based on native file detection
+cfg_lines = [
+    "[bdist_wheel]",
+    "root_is_pure = false",
+]
 if not contains_native_files:
-    sys.argv.extend(("--abi-tag", "none", "--python-tag", "py3"))
+    cfg_lines.extend(["python_tag = py3", "abi_tag = none"])
 
-plat = os.environ.get("AUDITWHEEL_PLAT", None)
+import os
+plat = os.environ.get("AUDITWHEEL_PLAT", "")
 if plat:
-    sys.argv.extend(("-p", plat))
+    cfg_lines.append(f"plat_name = {plat}")
+if %(require_libpython)r:
+    cfg_lines.append("require_libpython = true")
+
+with open("setup.cfg", "wt", encoding="utf-8") as f:
+    f.write("\\n".join(cfg_lines) + "\\n")
 
 setup(
     name=%(name)r,
@@ -206,8 +221,14 @@ setup(
     dependency_links=[],
     zip_safe=False,
     obsoletes=[],
-    cmdclass={"bdist_wheel": BdistAxle}
+    cmdclass={"bdist_wheel": BdistAxle},
 )
+"""
+
+PYPROJECT_TOML = """\
+[build-system]
+requires = ["setuptools", "wheel", "wheel-axle>=0.0.12"]
+build-backend = "setuptools.build_meta"
 """
 
 
@@ -328,15 +349,16 @@ class Packager:
                     except OSError:
                         pass
 
-    def package(self, package_vars, *args, debug_package_vars=None):
+    def package(self, package_vars, debug_package_vars=None, require_libpython=False):
         def _package(package_dir, package_vars):
-            setup_file = TEMPLATE % package_vars
-            with TemporaryDirectory() as tmp_dir:
-                tmp_setup = Path(tmp_dir) / "setup.py"
-                with open(tmp_setup, "wt") as f:
-                    f.write(setup_file)
+            package_vars = dict(package_vars, require_libpython=require_libpython)
+            setup_file = SETUP_PY_TEMPLATE % package_vars
+            (package_dir / "setup.py").write_text(setup_file, encoding="utf-8")
+            (package_dir / "pyproject.toml").write_text(PYPROJECT_TOML, encoding="utf-8")
 
-                self.call(sys.executable, tmp_setup, "bdist_wheel", *args, cwd=package_dir)
+            build_cmd = [sys.executable, "-m", "build", "--wheel", "--no-isolation"]
+            self.call(*build_cmd, cwd=package_dir)
+
             for f in package_dir.glob("dist/*.whl"):
                 move(f, self.wheel_dir / f.name)
 
@@ -404,7 +426,7 @@ def main():
                               long_description="Self-contained LLVM LLDB infrastructure",
                               requires=[f"karellen-llvm-clang=={pkgr.version}"],
                               extras={},
-                              keywords=["LLVM", "lldb", "debugger"]), "--require-libpython", "true")
+                              keywords=["LLVM", "lldb", "debugger"]), require_libpython=True)
 
         elif project == "clang":
             pkgr.build("install")

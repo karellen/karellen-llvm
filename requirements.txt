@@ -1,3 +1,4 @@
 pyelftools
-wheel-axle>0.0.8
+wheel-axle>=0.0.12
 setuptools
+build
