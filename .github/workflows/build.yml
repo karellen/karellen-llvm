@@ -7,13 +7,11 @@ on:
     branches:
       - master
 jobs:
-  build-primary:
+  build:
     runs-on: self-hosted
     timeout-minutes: 1380
     continue-on-error: false
     env:
-      TWINE_USERNAME: __token__
-      TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       SEGMENT_DOWNLOAD_TIMEOUT_MINS: 60
     steps:
@@ -55,9 +53,32 @@ jobs:
           twine check --strict wheels/*.whl
           ls -la wheels/*
 
-      - name: Upload Releases
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels
+          path: wheels/*.whl
+
+  release:
+    needs: build
+    if: github.ref_name == 'master'
+    runs-on: self-hosted
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Download Wheels
+        uses: actions/download-artifact@v4
+        with:
+          name: wheels
+          path: wheels
+
+      - name: Release
         shell: bash
-        if: github.ref_name == 'master'
         run: |
           set -eEux
           set -o pipefail
@@ -65,6 +86,38 @@ jobs:
           gh release create v$(./version_extractor.py -d llvm-project -m python) --generate-notes wheels/*.whl
           ./sync-submodule-tags.sh
 
-          while ! twine upload --non-interactive --skip-existing wheels/*.whl; do
-              sleep 5
+  upload-pypi:
+    needs: release
+    if: github.ref_name == 'master'
+    runs-on: self-hosted
+    env:
+      TWINE_USERNAME: __token__
+      TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+    steps:
+      - name: Install Twine
+        shell: bash
+        run: |
+          set -eEux
+          set -o pipefail
+
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          PATH=$HOME/.local/bin:$PATH
+          export PATH
+          pip install --no-input --user --break-system-packages twine
+
+      - name: Download Wheels
+        uses: actions/download-artifact@v4
+        with:
+          name: wheels
+          path: wheels
+
+      - name: Upload to PyPI
+        shell: bash
+        run: |
+          set -eEux
+          set -o pipefail
+
+          for i in 1 2 3; do
+              twine upload --non-interactive --skip-existing wheels/*.whl && break
+              [ "$i" -lt 3 ] && sleep 5
           done
