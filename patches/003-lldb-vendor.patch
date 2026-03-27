@@ -1,0 +1,42 @@
+diff --git a/lldb/CMakeLists.txt b/lldb/CMakeLists.txt
+index 0736e6ba132c..ee0223da8196 100644
+--- a/lldb/CMakeLists.txt
++++ b/lldb/CMakeLists.txt
+@@ -41,6 +41,13 @@ include(LLDBLayeringCheck)
+ 
+ set(LLDB_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
+ 
++set(LLDB_VENDOR ${PACKAGE_VENDOR} CACHE STRING
++  "Vendor-specific text for showing with version information.")
++
++if(LLDB_VENDOR)
++  add_definitions(-DLLDB_VENDOR="${LLDB_VENDOR}")
++endif()
++
+ # Define the LLDB_CONFIGURATION_xxx matching the build type.
+ if(uppercase_CMAKE_BUILD_TYPE STREQUAL "DEBUG" )
+   add_definitions(-DLLDB_CONFIGURATION_DEBUG)
+diff --git a/lldb/source/Version/Version.cpp b/lldb/source/Version/Version.cpp
+index b391fe1eacd8..9b8b0f9625d3 100644
+--- a/lldb/source/Version/Version.cpp
++++ b/lldb/source/Version/Version.cpp
+@@ -12,11 +12,17 @@
+ #include "clang/Basic/Version.h"
+ 
+ static const char *GetLLDBVersion() {
++#ifdef LLDB_VENDOR
++#define LLDB_VENDOR_DISPLAY LLDB_VENDOR " "
++#else
++#define LLDB_VENDOR_DISPLAY
++#endif
+ #ifdef LLDB_FULL_VERSION_STRING
+-  return LLDB_FULL_VERSION_STRING;
++  return LLDB_VENDOR_DISPLAY LLDB_FULL_VERSION_STRING;
+ #else
+-  return "lldb version " LLDB_VERSION_STRING;
++  return LLDB_VENDOR_DISPLAY "lldb version " LLDB_VERSION_STRING;
+ #endif
++#undef LLDB_VENDOR_DISPLAY
+ }
+ 
+ static const char *GetLLDBRevision() {
