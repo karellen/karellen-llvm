@@ -356,7 +356,7 @@ class Packager:
             (package_dir / "setup.py").write_text(setup_file, encoding="utf-8")
             (package_dir / "pyproject.toml").write_text(PYPROJECT_TOML, encoding="utf-8")
 
-            build_cmd = [sys.executable, "-m", "build", "--wheel", "--no-isolation"]
+            build_cmd = [sys.executable, "-m", "build", "--wheel", "--no-isolation", "--skip-dependency-check"]
             self.call(*build_cmd, cwd=package_dir)
 
             for f in package_dir.glob("dist/*.whl"):
