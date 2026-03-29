@@ -11,11 +11,13 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 1380
     continue-on-error: false
+    outputs:
+      version: ${{ steps.version.outputs.python_pkg_version }}
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       SEGMENT_DOWNLOAD_TIMEOUT_MINS: 60
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
           fetch-depth: 0
@@ -53,6 +55,25 @@ jobs:
           twine check --strict wheels/*.whl
           ls -la wheels/*
 
+      - name: Extract Version
+        id: version
+        shell: bash
+        run: |
+          set -eEux
+          set -o pipefail
+
+          PYTHON_PKG_VERSION=$(./version_extractor.py -d llvm-project -m python)
+          echo "python_pkg_version=$PYTHON_PKG_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Sync Submodule Tags
+        if: github.ref_name == 'master'
+        shell: bash
+        run: |
+          set -eEux
+          set -o pipefail
+
+          ./sync-submodule-tags.sh
+
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -62,16 +83,11 @@ jobs:
   release:
     needs: build
     if: github.ref_name == 'master'
-    runs-on: self-hosted
-    outputs:
-      version: ${{ steps.release.outputs.version }}
+    runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v5
-        with:
-          submodules: recursive
-          fetch-depth: 0
+      - uses: actions/checkout@v6
 
       - name: Download Wheels
         uses: actions/download-artifact@v4
@@ -80,19 +96,15 @@ jobs:
           path: wheels
 
       - name: Release
-        id: release
         shell: bash
         run: |
           set -eEux
           set -o pipefail
 
-          VERSION=$(./version_extractor.py -d llvm-project -m python)
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          gh release create "v$VERSION" --generate-notes wheels/*.whl
-          ./sync-submodule-tags.sh
+          gh release create "v${{ needs.build.outputs.python_pkg_version }}" --generate-notes wheels/*.whl
 
   upload-pypi:
-    needs: release
+    needs: [build, release]
     if: github.ref_name == 'master'
     runs-on: ubuntu-latest
     env:
@@ -117,7 +129,7 @@ jobs:
           set -o pipefail
 
           mkdir -p wheels
-          gh release download "v${{ needs.release.outputs.version }}" --pattern '*.whl' --dir wheels
+          gh release download "v${{ needs.build.outputs.python_pkg_version }}" --pattern '*.whl' --dir wheels
 
       - name: Upload to PyPI
         shell: bash
