@@ -63,6 +63,8 @@ jobs:
     needs: build
     if: github.ref_name == 'master'
     runs-on: self-hosted
+    outputs:
+      version: ${{ steps.release.outputs.version }}
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -78,19 +80,23 @@ jobs:
           path: wheels
 
       - name: Release
+        id: release
         shell: bash
         run: |
           set -eEux
           set -o pipefail
 
-          gh release create v$(./version_extractor.py -d llvm-project -m python) --generate-notes wheels/*.whl
+          VERSION=$(./version_extractor.py -d llvm-project -m python)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          gh release create "v$VERSION" --generate-notes wheels/*.whl
           ./sync-submodule-tags.sh
 
   upload-pypi:
     needs: release
     if: github.ref_name == 'master'
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       TWINE_USERNAME: __token__
       TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
     steps:
@@ -100,16 +106,18 @@ jobs:
           set -eEux
           set -o pipefail
 
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-          PATH=$HOME/.local/bin:$PATH
-          export PATH
-          pip install --no-input --user --break-system-packages twine
+          pip install --no-input twine
 
-      - name: Download Wheels
-        uses: actions/download-artifact@v4
-        with:
-          name: wheels
-          path: wheels
+      - name: Download Wheels from Release
+        shell: bash
+        env:
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -eEux
+          set -o pipefail
+
+          mkdir -p wheels
+          gh release download "v${{ needs.release.outputs.version }}" --pattern '*.whl' --dir wheels
 
       - name: Upload to PyPI
         shell: bash
