@@ -12,7 +12,7 @@ jobs:
     timeout-minutes: 1380
     continue-on-error: false
     outputs:
-      version: ${{ steps.version.outputs.python_pkg_version }}
+      python_pkg_version: ${{ steps.version.outputs.python_pkg_version }}
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       SEGMENT_DOWNLOAD_TIMEOUT_MINS: 60
