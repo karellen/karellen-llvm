@@ -33,6 +33,7 @@ jobs:
           if [ -n "$CURRENT_BRANCH" ] ; then
             echo "# Pending auto-update branch $CURRENT_BRANCH already exists!" >> $GITHUB_STEP_SUMMARY
             echo "skip=true" >> "$GITHUB_OUTPUT"
+            gh run cancel -R $GITHUB_SERVER_URL/$GITHUB_REPOSITORY ${{ github.run_id }}
           fi
 
       - uses: actions/checkout@v5
