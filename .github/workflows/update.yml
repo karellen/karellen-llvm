@@ -36,7 +36,7 @@ jobs:
             gh run cancel -R $GITHUB_SERVER_URL/$GITHUB_REPOSITORY ${{ github.run_id }}
           fi
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         if: steps.check-existing.outputs.skip != 'true'
         with:
           fetch-depth: 0
