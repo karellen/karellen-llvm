@@ -13,6 +13,7 @@ jobs:
       SEGMENT_DOWNLOAD_TIMEOUT_MINS: 60
     steps:
       - name: Ensure only single auto-update branch
+        id: check-existing
         shell: bash
         run: |
           set -eEux
@@ -31,15 +32,16 @@ jobs:
           CURRENT_BRANCH="$(git ls-remote $GITHUB_SERVER_URL/$GITHUB_REPOSITORY 'auto-update-*' 2>/dev/null | { grep -o 'refs/heads/auto-update-.*' || true; } | sed 's/refs\/heads\///')"
           if [ -n "$CURRENT_BRANCH" ] ; then
             echo "# Pending auto-update branch $CURRENT_BRANCH already exists!" >> $GITHUB_STEP_SUMMARY
-            gh run cancel -R $GITHUB_SERVER_URL/$GITHUB_REPOSITORY ${{ github.run_id }}
-            sleep 10
+            echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: actions/checkout@v5
+        if: steps.check-existing.outputs.skip != 'true'
         with:
           fetch-depth: 0
           ref: master
       - name: Check Updates
+        if: steps.check-existing.outputs.skip != 'true'
         shell: bash
         run: |
           source ./check-updates.sh
