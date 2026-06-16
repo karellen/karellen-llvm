@@ -109,4 +109,6 @@ llvm.*.build/
 llvm.*.bin/
 llvm.*.build.*/
 llvm.*.bin.*/
+llvm.lldb.staging/
+llvm.lldb.staging.*/
 packager.record
