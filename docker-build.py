@@ -5,16 +5,21 @@ import argparse
 import os
 import signal
 import sys
+
+import python_abis
 from grp import getgrgid
 from os import makedirs, getuid, getgid, environ
 from os.path import exists, join as jp, abspath as ap, expanduser
 from pwd import getpwuid
 from subprocess import Popen, run
 
-PYTHON_VERSION = "312"
-CCACHE_VERSION = "4.12.2"
-CMAKE_VERSION = "4.2.1"
-NINJA_VERSION = "1.13.1"
+# CPython ABI set (single source of truth: python_abis.py).
+PYTHON_VERSION = python_abis.PYTHON_DEFAULT_VERSION
+PYTHON_BUILD_GLOB = python_abis.build_glob()
+
+CCACHE_VERSION = "4.13.6"
+CMAKE_VERSION = "4.3.3"
+NINJA_VERSION = "1.13.2"
 
 DOCKER_BASES = {
     "ghcr.io/karellen/manylinux_2_28_x86_64:latest": "manylinux2014",
@@ -24,7 +29,7 @@ INIT_SCRIPT = [
     'ARCH="$(uname -m)"',
     f'export PYTHON_BIN="$(echo /opt/python/cp{PYTHON_VERSION}-cp{PYTHON_VERSION}-shared*)/bin"',
     'export PATH="$PYTHON_BIN:$PATH"',
-    f"curl -Ls https://github.com/ccache/ccache/releases/download/v{CCACHE_VERSION}/ccache-{CCACHE_VERSION}-linux-$ARCH.tar.xz | tar -xv --xz -C /tmp",
+    f"curl -Ls https://github.com/ccache/ccache/releases/download/v{CCACHE_VERSION}/ccache-{CCACHE_VERSION}-linux-$ARCH-glibc.tar.xz | tar -xv --xz -C /tmp",
     "cd /tmp/ccache* && make install",
     f"curl -Ls -o /tmp/cmake.sh https://github.com/Kitware/CMake/releases/download/v{CMAKE_VERSION}/cmake-{CMAKE_VERSION}-linux-$ARCH.sh",
     "chmod +x /tmp/cmake.sh && /tmp/cmake.sh --exclude-subdir --skip-license --prefix=/usr/local",
@@ -35,7 +40,9 @@ INIT_SCRIPT = [
 ]
 
 MAPPED_FILES = [
+    ("python_abis.py", None, "ro"),
     ("twostage.cmake", None, "ro"),
+    ("stage2-common.cmake", None, "ro"),
     ("build-twostage.sh", None, "ro"),
     ("package-twostage.sh", None, "ro"),
     ("packager.py", None, "ro"),
@@ -44,7 +51,10 @@ MAPPED_FILES = [
     ("test-build.sh", None, "ro"),
 ]
 
-MAPPED_DIRS = ["llvm.twostage.build"]
+# Read-only source directories mapped into /build.
+MAPPED_SRC_DIRS = ["lldb-multipython"]
+
+MAPPED_DIRS = ["llvm.twostage.build", "llvm.lldb.driver.build", "llvm.lldb.staging"]
 ENV_VARS = ["NO_CCACHE", "NO_MULTIPYTHON_BUILDS"]
 
 _current_proc = None
@@ -58,24 +68,28 @@ def cleanup():
         return
     _cleaning_up = True
 
-    if _current_proc and _current_proc.poll() is None:
-        _current_proc.terminate()
-        try:
-            _current_proc.wait(timeout=5)
-        except Exception:
-            _current_proc.kill()
-            _current_proc.wait()
-
+    # Stop the container FIRST, via an independent `docker stop` subprocess.
+    # This is the authoritative teardown and, crucially, does not touch
+    # _current_proc's internal _waitpid_lock. cleanup() runs inside the signal
+    # handler while the main thread is suspended mid-_current_proc.wait() (which
+    # holds that lock): calling a *blocking* _current_proc.wait() here would
+    # deadlock on the held lock and hang the abort forever. Stopping the
+    # container makes the `docker run` client exit on its own.
     if _current_container:
         try:
             run(["docker", "stop", "-t", "3", _current_container],
-                capture_output=True, timeout=10)
+                capture_output=True, timeout=15)
         except Exception:
             try:
                 run(["docker", "kill", _current_container],
-                    capture_output=True, timeout=5)
+                    capture_output=True, timeout=10)
             except Exception:
                 pass
+
+    # Nudge the `docker run` client. poll() is non-blocking and terminate()
+    # only sends a signal; we deliberately do NOT block-wait on it here.
+    if _current_proc and _current_proc.poll() is None:
+        _current_proc.terminate()
 
     _cleaning_up = False
 
@@ -121,7 +135,7 @@ def main():
             f'export PYTHON_BIN="$(echo /opt/python/cp{PYTHON_VERSION}-cp{PYTHON_VERSION}-shared*)/bin"',
             f'export PATH="$PYTHON_BIN:$PATH"',
             "cd /build",
-            'for python_dir in $(ls -d /opt/python/cp3{9..14}-*[0-9]-shared 2>/dev/null || true); do $python_dir/bin/python3 -m pip install --root-user-action ignore -r requirements.txt; done',
+            f'for python_dir in $(ls -d {PYTHON_BUILD_GLOB} 2>/dev/null || true); do $python_dir/bin/python3 -m pip install --root-user-action ignore -r requirements.txt; done',
             f"su -m {uname} {run_script}",
         ]
         inner_script = " && ".join(script_lines)
@@ -137,6 +151,8 @@ def main():
             makedirs(local_dir, exist_ok=True)
             cmd_line.extend(["-v", "%s:%s" % (ap(local_dir), jp("/build", md))])
         cmd_line.extend(["-v", "%s:%s:ro" % (ap("llvm-project"), jp("/build", "llvm-project"))])
+        for sd in MAPPED_SRC_DIRS:
+            cmd_line.extend(["-v", "%s:%s:ro" % (ap(sd), jp("/build", sd))])
         cmd_line.extend(["-v", "%s:%s" % (ccache_dir, ccache_dir)])
         cmd_line.extend(["-v", "%s:%s" % (ap("ccache"), jp("/build", "ccache"))])
         cmd_line.extend(["-v", "%s:%s" % (ap("wheels"), jp("/build", "wheels"))])

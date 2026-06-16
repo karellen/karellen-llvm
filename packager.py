@@ -69,12 +69,19 @@ class ElfState(IntFlag):
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-S", "--stage", type=int, choices=[1, 2], required=True)
-parser.add_argument("-b", "--build-dir", type=Path, help="LLVM build directory", required=True)
+parser.add_argument("-S", "--stage", type=int, choices=[1, 2], default=2)
+parser.add_argument("-b", "--build-dir", type=Path, help="LLVM build directory")
 parser.add_argument("-t", "--target-dir", type=Path, help="LLVM binary directory", required=True)
+parser.add_argument("--tools-dir", type=Path, default=None,
+                    help="directory containing llvm-objcopy/llvm-strip/llvm-config "
+                         "(default: the build directory). Used when packaging a "
+                         "pre-staged standalone LLDB whose own build tree has no LLVM tools.")
+parser.add_argument("--prestaged", action="store_true", default=False,
+                    help="package the standalone LLDB install already present in --target-dir "
+                         "(built by the lldb-multipython driver); skips the ninja build step")
 parser.add_argument("-s", "--source-dir", type=Path, default=Path("llvm-project"), help="LLVM project source")
 parser.add_argument("-p", "--project", nargs="+", type=str, choices=["core", "toolchain", "lldb", "clang"],
-                    default=["core", "toolchain", "lldb", "clang"], help="projects to build")
+                    default=["core", "toolchain", "clang"], help="projects to build")
 parser.add_argument("-r", "--record", type=Path, default=Path("packager.record"))
 parser.add_argument("--restore-record", action="store_true", default=False, help="whether to restore the record")
 
@@ -234,7 +241,7 @@ build-backend = "setuptools.build_meta"
 
 class Packager:
     def __init__(self, stage: int, source_dir: Path, build_dir: Path, target_dir: Path, record: Path,
-                 wheel_dir: Path = Path("wheels")):
+                 wheel_dir: Path = Path("wheels"), tools_dir: Path = None):
         self.stage = stage
         self.source_dir = source_dir
         self.build_dir = build_dir
@@ -244,17 +251,31 @@ class Packager:
         self.wheel_dir = wheel_dir
         self.processed: set[Path|str] = set()
         self._call_env = dict(os.environ)
-        self._llvm_config = self.build_dir / "bin" / "llvm-config"
 
-        if self.stage == 2:
-            log(f"Running in two-stage mode!")
-            self.build_dir = self.build_dir / "tools" / "clang" / "stage2-bins"
-            build_dir_libs = self.build_dir / "lib"
+        if tools_dir is not None:
+            # ELF/debug tooling (objcopy/strip/llvm-config) comes from an explicit
+            # toolchain directory. Used when packaging a pre-staged standalone LLDB:
+            # build_dir/target_dir hold only LLDB, but the LLVM tools live in the
+            # stage-2 install.
+            tools_dir = Path(tools_dir)
+            self._llvm_config = tools_dir / "bin" / "llvm-config"
+            tools_libs = tools_dir / "lib"
             host_target = check_output([self._llvm_config, '--host-target'], universal_newlines=True).strip()
-            self._call_env["LD_LIBRARY_PATH"] = f"{build_dir_libs / host_target}:{build_dir_libs}"
+            self._call_env["LD_LIBRARY_PATH"] = f"{tools_libs / host_target}:{tools_libs}"
+            self._objcopy = (tools_dir / "bin" / "llvm-objcopy").absolute()
+            self._strip = (tools_dir / "bin" / "llvm-strip").absolute()
+        else:
+            self._llvm_config = self.build_dir / "bin" / "llvm-config"
 
-        self._objcopy = (self.build_dir / "bin" / "llvm-objcopy").absolute()
-        self._strip = (self.build_dir / "bin" / "llvm-strip").absolute()
+            if self.stage == 2:
+                log(f"Running in two-stage mode!")
+                self.build_dir = self.build_dir / "tools" / "clang" / "stage2-bins"
+                build_dir_libs = self.build_dir / "lib"
+                host_target = check_output([self._llvm_config, '--host-target'], universal_newlines=True).strip()
+                self._call_env["LD_LIBRARY_PATH"] = f"{build_dir_libs / host_target}:{build_dir_libs}"
+
+            self._objcopy = (self.build_dir / "bin" / "llvm-objcopy").absolute()
+            self._strip = (self.build_dir / "bin" / "llvm-strip").absolute()
 
         self.version = version_extractor.get_version("python", self.source_dir)
         log(f"LLVM Python Version: {self.version}")
@@ -369,8 +390,35 @@ class Packager:
             _package(self.target_dir_debug, debug_vars)
 
 
+def lldb_package_vars(version):
+    return dict(name="karellen-llvm-lldb",
+                version=version,
+                description="Karellen LLDB infrastructure",
+                long_description="Self-contained LLVM LLDB infrastructure",
+                requires=[f"karellen-llvm-clang=={version}"],
+                extras={},
+                keywords=["LLVM", "lldb", "debugger"])
+
+
 def main():
     args = parser.parse_args()
+
+    if args.prestaged:
+        if args.tools_dir is None:
+            parser.error("--prestaged requires --tools-dir")
+        # The standalone LLDB install built by lldb-multipython is already present
+        # in target_dir; strip debug info in place (using the stage-2 tools from
+        # --tools-dir) and package it as the Python-ABI-specific LLDB wheel.
+        pkgr = Packager(args.stage, args.source_dir, args.tools_dir, args.target_dir,
+                        args.record, tools_dir=args.tools_dir)
+        pkgr.wheel_dir.mkdir(parents=True, exist_ok=True)
+        pkgr.process_elf(extract=False)
+        pkgr.package(lldb_package_vars(pkgr.version), require_libpython=True)
+        return
+
+    if args.build_dir is None:
+        parser.error("-b/--build-dir is required unless --prestaged is given")
+
     pkgr = Packager(args.stage, args.source_dir, args.build_dir, args.target_dir,
                     args.record)
 
@@ -417,16 +465,13 @@ def main():
                               keywords=["LLVM", "toolchain", "tools"]))
 
         elif project == "lldb":
+            # In-tree LLDB packaging (legacy path). The current two-stage build no
+            # longer builds LLDB in-tree; LLDB is packaged via --prestaged from the
+            # lldb-multipython standalone builds. Kept for in-tree builds.
             pkgr.build(*map(lambda x: f"install-{x}", LLDB_TOOLS))
             pkgr.record_processed()
             pkgr.process_elf(extract=False)
-            pkgr.package(dict(name="karellen-llvm-lldb",
-                              version=pkgr.version,
-                              description="Karellen LLDB infrastructure",
-                              long_description="Self-contained LLVM LLDB infrastructure",
-                              requires=[f"karellen-llvm-clang=={pkgr.version}"],
-                              extras={},
-                              keywords=["LLVM", "lldb", "debugger"]), require_libpython=True)
+            pkgr.package(lldb_package_vars(pkgr.version), require_libpython=True)
 
         elif project == "clang":
             pkgr.build("install")
