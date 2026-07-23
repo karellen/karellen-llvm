@@ -1,13 +1,12 @@
 diff --git a/llvm/cmake/modules/AddLLVM.cmake b/llvm/cmake/modules/AddLLVM.cmake
-index 230620c37027..fb1f7a501c04 100644
+index a267166eb6c2..9bdf4963fef1 100644
 --- a/llvm/cmake/modules/AddLLVM.cmake
 +++ b/llvm/cmake/modules/AddLLVM.cmake
-@@ -1315,6 +1315,7 @@ if(NOT LLVM_TOOLCHAIN_TOOLS)
-     llvm-strip
+@@ -1581,6 +1581,7 @@ if(NOT LLVM_TOOLCHAIN_TOOLS)
      llvm-profdata
+     llvm-profgen
      llvm-symbolizer
 +    llvm-dis
      # symlink version of some of above tools that are enabled by
      # LLVM_INSTALL_BINUTILS_SYMLINKS.
      addr2line
-

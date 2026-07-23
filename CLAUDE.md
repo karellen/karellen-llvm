@@ -24,14 +24,14 @@ All inter-package dependencies use exact version pinning (`==`).
 
 ```
 karellen-llvm/
-  llvm-project/           # Git submodule → llvm/llvm-project, branch release/22.x
+  llvm-project/           # Git submodule → llvm/llvm-project, branch release/23.x
   patches/                # Applied to llvm-project at build time (not committed to submodule)
     001-runpath.patch      # RPATH fixes for libc++/libc++abi/libunwind/lldb
     002-llvm-tools.patch   # Adds llvm-dis to LLVM_TOOLCHAIN_TOOLS
     003-lldb-vendor.patch  # Injects LLDB_VENDOR (from PACKAGE_VENDOR) into lldb --version
   .github/workflows/
     build.yml              # CI: build → release → upload-pypi (self-hosted runner)
-    update.yml             # Cron: auto-update submodule from release/22.x every 6h
+    update.yml             # Cron: auto-update submodule from release/23.x every 6h
     upload-missing.yml     # Manual: re-upload release wheels missing from PyPI
   docker-build.py          # Docker orchestration (manylinux_2_28 container)
   build-twostage.sh        # Two-stage bootstrap build script (runs inside Docker)
@@ -122,7 +122,9 @@ CI workflow's build step and also by `patch.sh`. They are **not** committed into
 the submodule.
 
 Current patches:
-- `001-runpath.patch` — adds `-Wl,-rpath,'$ORIGIN'` to the libc++ shared library link
+- `001-runpath.patch` — adds `-Wl,-rpath,'$ORIGIN'` to the libc++ and libc++abi
+  shared library links, and extra `$ORIGIN`-relative `INSTALL_RPATH` entries to the
+  LLDB Python wrapper library (`add_python_wrapper` in `lldb/bindings/python`)
 - `002-llvm-tools.patch` — adds `llvm-dis` to the default `LLVM_TOOLCHAIN_TOOLS`
 - `003-lldb-vendor.patch` — adds an `LLDB_VENDOR` CMake/define hook (sourced from
   `PACKAGE_VENDOR`) so `lldb --version` shows the Karellen vendor string
@@ -130,7 +132,7 @@ Current patches:
 When modifying patches:
 - Keep them minimal and rebasing-friendly
 - Number them sequentially (001, 002, ...)
-- Each patch must apply cleanly against the tracked `release/22.x` branch
+- Each patch must apply cleanly against the tracked `release/23.x` branch
 
 ## CI/CD
 
@@ -148,7 +150,7 @@ When modifying patches:
 
 - **Schedule**: every 6 hours + manual dispatch
 - Cleans up stale auto-update branches
-- Checks for upstream changes on `release/22.x`
+- Checks for upstream changes on `release/23.x`
 - Handles tag flips (new release tags on existing commits)
 - Creates auto-update PR (`auto-update-{old}-{new}`) and auto-merges
 
@@ -184,8 +186,8 @@ To test wheels: `./test-build.sh` (creates a venv, installs wheels, validates)
 
 ### Updating Submodule Branch
 
-When LLVM releases a new major version (e.g., 23.x):
-1. Update `.gitmodules` branch to `release/23.x`
+When LLVM releases a new major version (e.g., 24.x):
+1. Update `.gitmodules` branch to `release/24.x`
 2. Update submodule: `git submodule update --remote`
 3. Verify patches apply cleanly, rebase as needed
 4. Test build

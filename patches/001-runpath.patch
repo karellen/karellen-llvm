@@ -1,22 +1,24 @@
 diff --git a/libcxx/src/CMakeLists.txt b/libcxx/src/CMakeLists.txt
+index e029f9f29d5e..4d0db1b5d202 100644
 --- a/libcxx/src/CMakeLists.txt
 +++ b/libcxx/src/CMakeLists.txt
-@@ -184,6 +184,11 @@
- split_list(LIBCXX_COMPILE_FLAGS)
- split_list(LIBCXX_LINK_FLAGS)
+@@ -167,6 +167,11 @@ if (APPLE AND LLVM_USE_SANITIZER)
+   endif()
+ endif()
  
 +if (UNIX AND NOT APPLE AND NOT (${CMAKE_SYSTEM_NAME} MATCHES "AIX") AND LIBCXX_ENABLE_SHARED AND LIBCXXABI_USE_LLVM_UNWINDER AND
 +        NOT LIBCXXABI_STATICALLY_LINK_UNWINDER_IN_SHARED_LIBRARY AND (TARGET unwind_shared OR HAVE_LIBUNWIND))
 +    add_library_flags("-Wl,-rpath,'$$ORIGIN'")
 +endif()
 +
- # Build the shared library.
- if (LIBCXX_ENABLE_SHARED)
-   add_library(cxx_shared SHARED ${exclude_from_all} ${LIBCXX_SOURCES} ${LIBCXX_HEADERS})
+ split_list(LIBCXX_COMPILE_FLAGS)
+ split_list(LIBCXX_LINK_FLAGS)
+ 
 diff --git a/libcxxabi/src/CMakeLists.txt b/libcxxabi/src/CMakeLists.txt
+index dd23e9bb5bf7..c4e208de29f6 100644
 --- a/libcxxabi/src/CMakeLists.txt
 +++ b/libcxxabi/src/CMakeLists.txt
-@@ -145,6 +145,11 @@
+@@ -149,6 +149,11 @@ if ( APPLE )
    endif()
  endif()
  
@@ -28,32 +30,17 @@ diff --git a/libcxxabi/src/CMakeLists.txt b/libcxxabi/src/CMakeLists.txt
  split_list(LIBCXXABI_COMPILE_FLAGS)
  split_list(LIBCXXABI_LINK_FLAGS)
  
-diff --git a/llvm/cmake/modules/AddLLVM.cmake b/llvm/cmake/modules/AddLLVM.cmake
-index 1fefc2610afc..1e95792455ab 100644
---- a/llvm/cmake/modules/AddLLVM.cmake
-+++ b/llvm/cmake/modules/AddLLVM.cmake
-@@ -2557,8 +2558,8 @@ function(llvm_setup_rpath name)
-     # FIXME: update this when there is better solution.
-     set(_install_rpath "${LLVM_LIBRARY_OUTPUT_INTDIR}" "${CMAKE_INSTALL_PREFIX}/lib${LLVM_LIBDIR_SUFFIX}" ${extra_libdir})
-   elseif(UNIX)
--    set(_build_rpath "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}" ${extra_libdir})
--    set(_install_rpath "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}")
-+    set(_build_rpath "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}/${LLVM_DEFAULT_TARGET_TRIPLE}" "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}" ${extra_libdir})
-+    set(_install_rpath "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}/${LLVM_DEFAULT_TARGET_TRIPLE}" "\$ORIGIN/../lib${LLVM_LIBDIR_SUFFIX}")
-     if("${CMAKE_SYSTEM_NAME}" MATCHES "(FreeBSD|DragonFly)")
-       set_property(TARGET ${name} APPEND_STRING PROPERTY
-                    LINK_FLAGS " -Wl,-z,origin ")
-diff --git a/lldb/source/API/CMakeLists.txt b/lldb/source/API/CMakeLists.txt
-index a32bc58507d8..957d8a357d7f 100644
---- a/lldb/source/API/CMakeLists.txt
-+++ b/lldb/source/API/CMakeLists.txt
-@@ -151,6 +151,9 @@ add_lldb_library(liblldb SHARED ${option_framework}
- # that _lldb.so can be loaded from Python.
- if(LLDB_ENABLE_PYTHON AND (BUILD_SHARED_LIBS OR LLVM_LINK_LLVM_DYLIB) AND UNIX AND NOT APPLE)
-   set_property(TARGET liblldb APPEND PROPERTY INSTALL_RPATH "\$ORIGIN/../../../../lib${LLVM_LIBDIR_SUFFIX}")
-+  set_property(TARGET liblldb APPEND PROPERTY INSTALL_RPATH "\$ORIGIN/../../../../lib${LLVM_LIBDIR_SUFFIX}/${LLVM_DEFAULT_TARGET_TRIPLE}")
-+  set_property(TARGET liblldb APPEND PROPERTY INSTALL_RPATH "\$ORIGIN/../../../../../lib${LLVM_LIBDIR_SUFFIX}")
-+  set_property(TARGET liblldb APPEND PROPERTY INSTALL_RPATH "\$ORIGIN/../../../../../lib${LLVM_LIBDIR_SUFFIX}/${LLVM_DEFAULT_TARGET_TRIPLE}")
- endif()
+diff --git a/lldb/bindings/python/CMakeLists.txt b/lldb/bindings/python/CMakeLists.txt
+index d29b143c1408..bc0a083a267f 100644
+--- a/lldb/bindings/python/CMakeLists.txt
++++ b/lldb/bindings/python/CMakeLists.txt
+@@ -254,6 +254,9 @@ function(add_python_wrapper target)
+   # that _lldb.so can be loaded from Python.
+   if(LLDB_ENABLE_PYTHON AND (BUILD_SHARED_LIBS OR LLVM_LINK_LLVM_DYLIB) AND UNIX AND NOT APPLE)
+     set_property(TARGET ${target} APPEND PROPERTY INSTALL_RPATH "\$ORIGIN/../../../../lib${LLVM_LIBDIR_SUFFIX}")
++    set_property(TARGET ${target} APPEND PROPERTY INSTALL_RPATH "\$ORIGIN/../../../../lib${LLVM_LIBDIR_SUFFIX}/${LLVM_DEFAULT_TARGET_TRIPLE}")
++    set_property(TARGET ${target} APPEND PROPERTY INSTALL_RPATH "\$ORIGIN/../../../../../lib${LLVM_LIBDIR_SUFFIX}")
++    set_property(TARGET ${target} APPEND PROPERTY INSTALL_RPATH "\$ORIGIN/../../../../../lib${LLVM_LIBDIR_SUFFIX}/${LLVM_DEFAULT_TARGET_TRIPLE}")
+   endif()
  
- if(Python3_RPATH)
+   if(Python3_RPATH)
