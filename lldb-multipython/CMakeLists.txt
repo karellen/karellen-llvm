@@ -81,6 +81,13 @@ foreach(_py IN LISTS LLDB_PYTHONS)
       # explicitly to match the stage-2 runtimes layout (lib/<triple>/libc++.so.1).
       # Without this the standalone lldb fails: "libc++.so.1: cannot open ...".
       -DLLVM_DEFAULT_TARGET_TRIPLE=${LLVM_DEFAULT_TARGET_TRIPLE}
+      # llvm_setup_rpath (AddLLVM.cmake) appends $ORIGIN/../lib/<triple> to every
+      # tool's install RPATH only when LLVM_ENABLE_PER_TARGET_RUNTIME_DIR is set.
+      # It defaults ON (Linux) inside llvm/CMakeLists.txt, which a standalone
+      # LLDB configure never runs, and LLVMConfig.cmake doesn't export it either
+      # — so without this the lldb binaries get only $ORIGIN/../lib and fail at
+      # runtime with "libc++.so.1: cannot open shared object file".
+      -DLLVM_ENABLE_PER_TARGET_RUNTIME_DIR=ON
       # Per-Python binding.
       -DLLDB_ENABLE_PYTHON=ON
       -DPython3_EXECUTABLE=${_py}
