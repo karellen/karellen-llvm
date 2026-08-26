@@ -25,11 +25,28 @@
 # truth). This file is only the settings LLVMConfig does *not* carry.
 
 # Build type + flags. CMake's default RelWithDebInfo is "-O2 -g -DNDEBUG"; we
-# override to the project's "-O3 -glldb -DNDEBUG".
+# override to the project's "-O3 -g -DNDEBUG".
+#
+# NOTE: do NOT use -glldb here. Under -glldb (tuneForLLDB) clang encodes
+# DW_AT_object_pointer with DW_FORM_implicit_const on method declarations
+# (llvm/lib/CodeGen/AsmPrinter/DwarfUnit.cpp, gated on tuneForLLDB() &&
+# DwarfVersion >= 5). DW_AT_object_pointer is a reference-class attribute in
+# DWARF v5, so a constant-class form is a vendor extension -- accepted only
+# for DWARF v6 (dwarfstd.org issue 250130.1). GDB cannot read it: gdb 17.2
+# dies with an internal-error assertion in get_section_for_ref
+# ("attr.form_is_ref ()"), and GNU binutils readelf/objdump misrender the
+# index as a DIE offset. LLVM gates this behind LLDB tuning on the assumption
+# that only LLDB will consume the DWARF, which does not hold for us: we ship a
+# general-purpose toolchain whose libraries get opened by arbitrary debuggers.
+#
+# Cost of -g over -glldb is one cosmetic LLDB feature: DW_AT_APPLE_optimized
+# is no longer emitted, so LLDB frames lose the " [opt]" suffix. Variable
+# locations, types, line tables and inline frames are unaffected, and
+# DW_OP_convert (re-enabled under GDB tuning) is supported by LLDB.
 set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "")
-set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -glldb -DNDEBUG" CACHE STRING "")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -glldb -DNDEBUG" CACHE STRING "")
-set(CMAKE_ASM_FLAGS_RELWITHDEBINFO "-O3 -glldb -DNDEBUG" CACHE STRING "")
+set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -g -DNDEBUG" CACHE STRING "")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g -DNDEBUG" CACHE STRING "")
+set(CMAKE_ASM_FLAGS_RELWITHDEBINFO "-O3 -g -DNDEBUG" CACHE STRING "")
 
 # Link-time optimization + debug info layout.
 set(LLVM_ENABLE_LTO THIN CACHE STRING "")

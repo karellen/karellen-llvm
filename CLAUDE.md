@@ -27,7 +27,7 @@ karellen-llvm/
   llvm-project/           # Git submodule → llvm/llvm-project, branch release/23.x
   patches/                # Applied to llvm-project at build time (not committed to submodule)
     001-runpath.patch      # RPATH fixes for libc++/libc++abi/libunwind/lldb
-    002-llvm-tools.patch   # Adds llvm-dis to LLVM_TOOLCHAIN_TOOLS
+    002-llvm-tools.patch   # Adds llvm-dis, llvm-dwarfutil to LLVM_TOOLCHAIN_TOOLS
     003-lldb-vendor.patch  # Injects LLDB_VENDOR (from PACKAGE_VENDOR) into lldb --version
   .github/workflows/
     build.yml              # CI: build → release → upload-pypi (self-hosted runner)
@@ -62,10 +62,13 @@ build system at the top level. The build is orchestrated by custom scripts:
 1. **`docker-build.py`** launches a Docker container (`ghcr.io/karellen/manylinux_2_28_x86_64`)
 2. Inside the container, **`build-twostage.sh`** runs a two-stage Clang bootstrap **once**:
    - **Stage 1**: Build a minimal compiler with `-O2 -g0` (no debug info)
-   - **Stage 2**: Use Stage 1 compiler to build the final optimized LLVM/Clang/LLD with `-O3 -glldb -DNDEBUG`, Thin LTO, Split DWARF. **LLDB is no longer built in-tree.**
+   - **Stage 2**: Use Stage 1 compiler to build the final optimized LLVM/Clang/LLD with `-O3 -g -DNDEBUG`, Thin LTO, Split DWARF. **LLDB is no longer built in-tree.**
 3. **LLDB** is built **standalone, once per Python ABI**, by the repo-owned `lldb-multipython/` CMake driver (a `foreach` over the Python list, one `ExternalProject_Add` each) against the stage-2 LLVM/Clang dylibs, compiled by the stage-1 clang and linked to each interpreter's libpython. This avoids rebuilding LLVM/Clang for every Python. The opt/quality settings that must match between the two builds live in `stage2-common.cmake`, consumed by **both** stage 2 (via `CLANG_BOOTSTRAP_CMAKE_ARGS`) and each standalone LLDB build (via `-C`), so configuration is identical by construction. ABI-critical settings (RTTI/EH/triple/PIC) flow automatically through stage 2's exported `LLVMConfig.cmake`.
 4. **`packager.py`** processes the build output into separate wheels:
    - Extracts debug symbols from ELF binaries (`llvm-objcopy --only-keep-debug`)
+   - Optimizes the extracted DWARF (`llvm-dwarfutil`, GC + ODR dedup) to collapse
+     ThinLTO's cross-module debug-info duplication — ~42% off the core debug wheel.
+     Must run before `--add-gnu-debuglink`, which CRCs the debug file
    - Strips debug info from release binaries (`llvm-strip -g`)
    - Generates `setup.py`/`pyproject.toml` from templates and runs `python -m build`
    - Uses `wheel-axle` (`BdistAxle`) for wheel creation with proper ABI tags
@@ -76,6 +79,7 @@ build system at the top level. The build is orchestrated by custom scripts:
 |---|---|
 | `NO_CCACHE` | Disables ccache (set to any value) |
 | `NO_MULTIPYTHON_BUILDS` | Build only for current Python, not all available versions |
+| `NO_DWARF_OPT` | Skips the `llvm-dwarfutil` DWARF optimization pass in `packager.py` (that pass costs ~200 s and ~37 GB of RSS on `libLLVM`) |
 
 ### Docker Build Image
 
@@ -125,7 +129,8 @@ Current patches:
 - `001-runpath.patch` — adds `-Wl,-rpath,'$ORIGIN'` to the libc++ and libc++abi
   shared library links, and extra `$ORIGIN`-relative `INSTALL_RPATH` entries to the
   LLDB Python wrapper library (`add_python_wrapper` in `lldb/bindings/python`)
-- `002-llvm-tools.patch` — adds `llvm-dis` to the default `LLVM_TOOLCHAIN_TOOLS`
+- `002-llvm-tools.patch` — adds `llvm-dis` and `llvm-dwarfutil` to the default
+  `LLVM_TOOLCHAIN_TOOLS`
 - `003-lldb-vendor.patch` — adds an `LLDB_VENDOR` CMake/define hook (sourced from
   `PACKAGE_VENDOR`) so `lldb --version` shows the Karellen vendor string
 
@@ -196,6 +201,6 @@ When LLVM releases a new major version (e.g., 24.x):
 
 - The `stash/` directory contains archived/legacy scripts. Do not use or reference them for current builds.
 - `packager.record` is a pickled set of processed file paths, used for incremental packaging (tracking which files belong to which package). It is `.gitignore`-d.
-- The packager builds the Python-independent packages in order: core → toolchain → clang. Each step records processed files and deletes them before the next step, so later packages contain only their own files. LLDB is packaged separately, once per Python, from the standalone staging dirs via `packager.py --prestaged` (using the stage-2 install for objcopy/strip via `--tools-dir`).
+- The packager builds the Python-independent packages in order: core → toolchain → clang. Each step records processed files and deletes them before the next step, so later packages contain only their own files. LLDB is packaged separately, once per Python, from the standalone staging dirs via `packager.py --prestaged` (using the stage-2 install for objcopy/strip/dwarfutil via `--tools-dir`).
 - LLDB wheels are Python-version-specific (contain native `.so` linked to libpython); all other wheels are `py3-none`.
 - All shell scripts use `set -eEux` and `set -o pipefail` for strict error handling.

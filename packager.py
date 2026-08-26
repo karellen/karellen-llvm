@@ -21,6 +21,7 @@ from elftools.elf.elffile import ELFFile, ELFError
 TOOLCHAIN_TOOLS = ["llvm-ar",
                    "llvm-cov",
                    "llvm-cxxfilt",
+                   "llvm-dwarfutil",
                    "llvm-dwp",
                    "llvm-ranlib",
                    "llvm-lib",
@@ -60,6 +61,13 @@ LLDB_TOOLS = ["liblldb",
               "lldb-test",
               "lldbIntelFeatures",
               ]
+
+# DWARF linker used by llvm-dwarfutil when optimizing extracted debug files.
+# "classic" is llvm-dwarfutil's own default. "parallel" is ~5x faster, needs
+# ~29% less memory and produces ~32% smaller output, but on libLLVM it emits
+# dangling DW_FORM_ref4 references that `llvm-dwarfdump --verify` rejects
+# (classic's output verifies clean), so we stay on the verifier-clean one.
+DWARFUTIL_LINKER = "classic"
 
 
 class ElfState(IntFlag):
@@ -264,6 +272,7 @@ class Packager:
             self._call_env["LD_LIBRARY_PATH"] = f"{tools_libs / host_target}:{tools_libs}"
             self._objcopy = (tools_dir / "bin" / "llvm-objcopy").absolute()
             self._strip = (tools_dir / "bin" / "llvm-strip").absolute()
+            self._dwarfutil = (tools_dir / "bin" / "llvm-dwarfutil").absolute()
         else:
             self._llvm_config = self.build_dir / "bin" / "llvm-config"
 
@@ -276,6 +285,7 @@ class Packager:
 
             self._objcopy = (self.build_dir / "bin" / "llvm-objcopy").absolute()
             self._strip = (self.build_dir / "bin" / "llvm-strip").absolute()
+            self._dwarfutil = (self.build_dir / "bin" / "llvm-dwarfutil").absolute()
 
         self.version = version_extractor.get_version("python", self.source_dir)
         log(f"LLVM Python Version: {self.version}")
@@ -321,7 +331,28 @@ class Packager:
         log("`objcopy` is working")
         self.call(self._strip, "--version")
         log("`strip` is working")
+        if not os.environ.get("NO_DWARF_OPT"):
+            self.call(self._dwarfutil, "--version")
+            log("`dwarfutil` is working")
         return True
+
+    def optimize_dwarf(self, debug_f: Path):
+        """Garbage-collect and deduplicate DWARF in an extracted debug file.
+
+        ThinLTO imports a copy of each imported function's debug info into every
+        backend module, so libLLVM's .debug_info carries ~19400 CUs for ~1950
+        unique source files. Collapsing that shrinks the extracted debug info by
+        ~42% (2055 -> 1193 MB), at a cost of ~200 s and ~37 GB of RSS for
+        libLLVM. Must run before --add-gnu-debuglink, which CRCs the debug file.
+        """
+        if os.environ.get("NO_DWARF_OPT"):
+            return
+        log(f"\tOptimizing DWARF in {debug_f!s}")
+        optimized_f = debug_f.with_suffix(debug_f.suffix + ".opt")
+        self.call(self._dwarfutil, f"--linker={DWARFUTIL_LINKER}",
+                  "--garbage-collection", "--odr-deduplication",
+                  "--tombstone=universal", debug_f, optimized_f)
+        optimized_f.replace(debug_f)
 
     def process_elf(self, extract=True, strip_debug=True):
         self.check_debug_tools()
@@ -336,6 +367,7 @@ class Packager:
                 if extract:
                     log(f"\tExtracting {f!s}")
                     self.call(self._objcopy, "--only-keep-debug", f, debug_f)
+                    self.optimize_dwarf(debug_f)
                 if strip_debug:
                     log(f"\tStripping {f!s}")
                     self.call(self._strip, "-g", f)
