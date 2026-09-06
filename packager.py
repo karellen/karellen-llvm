@@ -3,6 +3,7 @@
 import argparse
 import os
 import pickle
+import re
 import sys
 from enum import IntFlag, auto
 from functools import lru_cache, partial
@@ -38,6 +39,14 @@ TOOLCHAIN_TOOLS = ["llvm-ar",
                    "llvm-profdata",
                    "llvm-symbolizer",
                    "llvm-dis",
+                   "llvm-mca",
+                   "llvm-profgen",
+                   "llvm-config",
+                   "opt",
+                   "llc",
+                   "llvm-as",
+                   "llvm-link",
+                   "llvm-extract",
                    "addr2line",
                    "ar",
                    "c++filt",
@@ -50,6 +59,25 @@ TOOLCHAIN_TOOLS = ["llvm-ar",
                    "strings",
                    "strip",
                    ]
+
+# LLVM development files: the headers (source + tablegen-generated) and the CMake
+# package (LLVMConfig.cmake, LLVMExports.cmake, HandleLLVMOptions.cmake,
+# AddLLVM.cmake, llvm-config). They ship alongside the toolchain tools rather than
+# in a wheel of their own because LLVMExports.cmake imports every tool in
+# LLVM_TOOLCHAIN_TOOLS as a target, and CMake fatal-errors at find_package(LLVM)
+# time if any imported file is missing -- see Packager.verify_cmake_exports.
+# Installable only because patches/004-dev-install.patch turns the upstream
+# LLVM_INSTALL_TOOLCHAIN_ONLY guards into EXCLUDE_FROM_ALL.
+TOOLCHAIN_DEV_COMPONENTS = ["llvm-headers",
+                            "cmake-exports",
+                            ]
+
+# Matches the existence-check entries CMake emits at the end of a generated
+# exports file, e.g.
+#   list(APPEND _cmake_import_check_files_for_llvm-ar "${_IMPORT_PREFIX}/bin/llvm-ar" )
+IMPORT_CHECK_RE = re.compile(r'_cmake_import_check_files_for_(?P<target>\S+)\s+'
+                             r'"\$\{_IMPORT_PREFIX\}/(?P<path>[^"]+)"',
+                             re.IGNORECASE)
 
 LLDB_TOOLS = ["liblldb",
               "lldb",
@@ -379,6 +407,41 @@ class Packager:
                     move(debug_f, target_debug_f)
                     target_debug_f.chmod(0o644)
 
+    def verify_cmake_exports(self):
+        """Fail if the installed LLVMExports references a file no wheel provides.
+
+        A generated CMake exports file ends in a loop that message(FATAL_ERROR)s
+        when an imported target's file is missing, so a single tool that upstream
+        added to LLVM_TOOLCHAIN_TOOLS but that TOOLCHAIN_TOOLS above does not
+        package breaks find_package(LLVM) outright for every consumer. Every
+        referenced file must therefore live either in this wheel's staging dir or
+        in one already packaged -- which today means core, an exact-pinned
+        dependency of the toolchain wheel that carries libLLVM/libLTO/libRemarks.
+        """
+        target_dir = self.target_dir
+        exports = sorted((target_dir / "lib" / "cmake" / "llvm").glob("LLVMExports*.cmake"))
+        if not exports:
+            raise RuntimeError(f"no LLVMExports*.cmake found under {target_dir!s}: the "
+                               f"cmake-exports component did not install")
+
+        log(f"Verifying CMake exports in {', '.join(f.name for f in exports)}...")
+        checked = 0
+        missing: dict[str, set[str]] = {}
+        for exports_f in exports:
+            for m in IMPORT_CHECK_RE.finditer(exports_f.read_text(encoding="utf-8")):
+                checked += 1
+                imported = target_dir / m.group("path")
+                if not (imported.exists() or imported in self.processed):
+                    missing.setdefault(m.group("target"), set()).add(m.group("path"))
+
+        if missing:
+            detail = "\n".join(f"\t{target}: {', '.join(sorted(paths))}"
+                               for target, paths in sorted(missing.items()))
+            raise RuntimeError(f"LLVMExports imports targets whose files are in no wheel; "
+                               f"find_package(LLVM) would fail for consumers. Add them to "
+                               f"TOOLCHAIN_TOOLS:\n{detail}")
+        log(f"\tAll {checked} imported files are accounted for")
+
     def delete_processed(self, delete_empty_dirs=True):
         target_dir = self.target_dir
         def yield_processed():
@@ -485,16 +548,19 @@ def main():
                               ))
         elif project == "toolchain":
             pkgr.build(*map(lambda x: f"install-{x}", TOOLCHAIN_TOOLS))
+            pkgr.build(*map(lambda x: f"install-{x}", TOOLCHAIN_DEV_COMPONENTS))
             pkgr.delete_processed()
+            pkgr.verify_cmake_exports()
             pkgr.record_processed()
             pkgr.process_elf(extract=False)
             pkgr.package(dict(name="karellen-llvm-toolchain-tools",
                               version=pkgr.version,
-                              description="Karellen LLVM Toolchain Tools",
-                              long_description="Self-contained LLVM toolchain tools",
+                              description="Karellen LLVM Toolchain Tools and development files",
+                              long_description="Self-contained LLVM toolchain tools, LLVM headers "
+                                               "and the LLVM CMake package",
                               requires=[f"karellen-llvm-core=={pkgr.version}"],
                               extras={},
-                              keywords=["LLVM", "toolchain", "tools"]))
+                              keywords=["LLVM", "toolchain", "tools", "headers", "development"]))
 
         elif project == "lldb":
             # In-tree LLDB packaging (legacy path). The current two-stage build no
