@@ -112,3 +112,6 @@ llvm.*.bin.*/
 llvm.lldb.staging/
 llvm.lldb.staging.*/
 packager.record
+venv-cp*/
+dev-smoke.build-cp*/
+.claude-tmp/

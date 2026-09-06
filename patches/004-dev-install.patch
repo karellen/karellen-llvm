@@ -1,0 +1,128 @@
+diff --git a/llvm/CMakeLists.txt b/llvm/CMakeLists.txt
+index 9340cd6c4501..a95e167e5360 100644
+--- a/llvm/CMakeLists.txt
++++ b/llvm/CMakeLists.txt
+@@ -445,6 +445,17 @@ option(LLVM_INSTALL_UTILS "Include utility binaries in the 'install' target." OF
+ 
+ option(LLVM_INSTALL_TOOLCHAIN_ONLY "Only include toolchain files in the 'install' target." OFF)
+ 
++# The headers and the CMake package are what a downstream project needs to
++# compile against libLLVM. Under LLVM_INSTALL_TOOLCHAIN_ONLY they are still
++# built and still installable through their own components, they are just not
++# part of the default `install` target -- hence EXCLUDE_FROM_ALL rather than
++# skipping the rules outright.
++if (LLVM_INSTALL_TOOLCHAIN_ONLY)
++  set(LLVM_DEV_EXCLUDE_FROM_ALL EXCLUDE_FROM_ALL)
++else()
++  set(LLVM_DEV_EXCLUDE_FROM_ALL "")
++endif()
++
+ # Unfortunatly Clang is too eager to search directories for module maps, which can cause the
+ # installed version of the maps to be found when building LLVM from source. Therefore we turn off
+ # the installation by default. See llvm.org/PR31905.
+@@ -1498,10 +1509,10 @@ if (LLVM_INCLUDE_UTILS)
+   add_subdirectory(utils/llvm-lit)
+ endif()
+ 
+-if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
+   install(DIRECTORY include/llvm include/llvm-c
+     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+     COMPONENT llvm-headers
++    ${LLVM_DEV_EXCLUDE_FROM_ALL}
+     FILES_MATCHING
+     PATTERN "*.def"
+     PATTERN "*.h"
+@@ -1513,6 +1524,7 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
+   install(DIRECTORY ${LLVM_INCLUDE_DIR}/llvm ${LLVM_INCLUDE_DIR}/llvm-c
+     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+     COMPONENT llvm-headers
++    ${LLVM_DEV_EXCLUDE_FROM_ALL}
+     FILES_MATCHING
+     PATTERN "*.def"
+     PATTERN "*.h"
+@@ -1527,12 +1539,14 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
+     install(DIRECTORY include
+             DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+             COMPONENT llvm-headers
++            ${LLVM_DEV_EXCLUDE_FROM_ALL}
+             FILES_MATCHING
+             PATTERN "module.modulemap"
+             )
+     install(FILES include/module.install.modulemap
+             DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+             COMPONENT llvm-headers
++            ${LLVM_DEV_EXCLUDE_FROM_ALL}
+             RENAME "module.extern.modulemap"
+             )
+   endif(LLVM_INSTALL_MODULEMAPS)
+@@ -1540,7 +1554,12 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
+   # Installing the headers needs to depend on generating any public
+   # tablegen'd headers.
+   add_custom_target(llvm-headers)
+-  add_dependencies(llvm-headers intrinsics_gen omp_gen target_parser_gen)
++  # acc_gen, analysis_gen and vt_gen also emit headers into ${LLVM_INCLUDE_DIR}
++  # (ACC.inc, TargetLibraryInfo.inc, GenVT.inc). Without them `ninja
++  # install-llvm-headers` on a not-yet-fully-built tree installs a header set
++  # that silently fails to compile: install(DIRECTORY) copies whatever exists.
++  add_dependencies(llvm-headers intrinsics_gen omp_gen target_parser_gen
++                                acc_gen analysis_gen vt_gen)
+   set_target_properties(llvm-headers PROPERTIES FOLDER "LLVM/Resources")
+ 
+   if (NOT LLVM_ENABLE_IDE)
+@@ -1549,6 +1568,7 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
+                              COMPONENT llvm-headers)
+   endif()
+ 
++if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
+   # Custom target to install all libraries.
+   add_custom_target(llvm-libraries)
+   set_target_properties(llvm-libraries PROPERTIES FOLDER "LLVM/Resources")
+diff --git a/llvm/cmake/modules/CMakeLists.txt b/llvm/cmake/modules/CMakeLists.txt
+index ef4cfa3acdb5..61e6511d08fd 100644
+--- a/llvm/cmake/modules/CMakeLists.txt
++++ b/llvm/cmake/modules/CMakeLists.txt
+@@ -163,7 +163,9 @@ configure_file(
+   ${llvm_cmake_builddir}/LLVMConfigVersion.cmake
+   @ONLY)
+ 
+-if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
++# See the LLVM_DEV_EXCLUDE_FROM_ALL comment in llvm/CMakeLists.txt: under
++# LLVM_INSTALL_TOOLCHAIN_ONLY the CMake package is installable as the
++# cmake-exports component but is not part of the default `install` target.
+   install_distribution_exports(LLVM)
+ 
+   install(FILES
+@@ -171,11 +173,13 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
+     ${llvm_cmake_builddir}/LLVMConfigVersion.cmake
+     LLVM-Config.cmake
+     DESTINATION ${LLVM_INSTALL_PACKAGE_DIR}
+-    COMPONENT cmake-exports)
++    COMPONENT cmake-exports
++    ${LLVM_DEV_EXCLUDE_FROM_ALL})
+ 
+   install(DIRECTORY .
+     DESTINATION ${LLVM_INSTALL_PACKAGE_DIR}
+     COMPONENT cmake-exports
++    ${LLVM_DEV_EXCLUDE_FROM_ALL}
+     FILES_MATCHING PATTERN *.cmake
+     PATTERN LLVMConfig.cmake EXCLUDE
+     PATTERN LLVMConfigExtensions.cmake EXCLUDE
+@@ -190,4 +194,3 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
+     add_llvm_install_targets(install-cmake-exports
+                              COMPONENT cmake-exports)
+   endif()
+-endif()
+diff --git a/llvm/cmake/modules/LLVMDistributionSupport.cmake b/llvm/cmake/modules/LLVMDistributionSupport.cmake
+index 03c677357023..18fa94b5f3a1 100644
+--- a/llvm/cmake/modules/LLVMDistributionSupport.cmake
++++ b/llvm/cmake/modules/LLVMDistributionSupport.cmake
+@@ -197,7 +197,8 @@ function(install_distribution_exports project)
+     get_property(has_exports GLOBAL PROPERTY ${project_upper}_HAS_EXPORTS)
+     if(has_exports)
+       install(EXPORT ${project}${suffix} DESTINATION "${destination}"
+-              COMPONENT ${prefix}cmake-exports)
++              COMPONENT ${prefix}cmake-exports
++              ${LLVM_DEV_EXCLUDE_FROM_ALL})
+     endif()
+   else()
+     foreach(distribution ${LLVM_DISTRIBUTIONS})

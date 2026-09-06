@@ -51,8 +51,9 @@ MAPPED_FILES = [
     ("test-build.sh", None, "ro"),
 ]
 
-# Read-only source directories mapped into /build.
-MAPPED_SRC_DIRS = ["lldb-multipython"]
+# Read-only source directories mapped into /build. `tests` carries dev-smoke,
+# which test-build.sh configures and builds inside the container.
+MAPPED_SRC_DIRS = ["lldb-multipython", "tests"]
 
 MAPPED_DIRS = ["llvm.twostage.build", "llvm.lldb.driver.build", "llvm.lldb.staging"]
 ENV_VARS = ["NO_CCACHE", "NO_MULTIPYTHON_BUILDS"]

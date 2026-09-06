@@ -11,9 +11,26 @@ from os.path import exists
 GIT_LOG_RE = re.compile(r"([0-9a-f]+)(?:\s+\(tag: llvmorg-(.+)\))?\n")
 LLVM_VERSION_RE = re.compile(r"(\d+).(\d+).(\d+)(?:-(rc\d+))?")
 
+def read_release(release_file: Union[str, Path]) -> int:
+    """Return the packager release counter, or 0 if unset.
+
+    The counter is the 4th component of the PEP 440 release segment, so it
+    outranks `.postN` and is only correct for the LLVM base version it was set
+    against. It MUST go back to 0 when X.Y.Z is bumped -- otherwise the next
+    upstream commit yields a version sorting below the previous release. The
+    auto-update workflow does that reset when it moves the submodule; see
+    CLAUDE.md, "Versioning".
+    """
+    if not exists(release_file):
+        return 0
+    with open(release_file, "rt") as f:
+        return int(f.read().strip() or 0)
+
+
 parser = argparse.ArgumentParser()
 
-parser.add_argument("-m", "--mode", choices=["python", "cmake", "tag", "is-tag"], default="python")
+parser.add_argument("-m", "--mode", choices=["python", "cmake", "tag", "is-tag", "base"],
+                    default="python")
 parser.add_argument("-d", "--directory", type=Path, default=".")
 parser.add_argument("--skip-current-tag", action="store_true", default=False,
                     help="disregard the first tag if it's on a current commit")
@@ -29,7 +46,8 @@ def main():
         print(version)
 
 
-def get_version(mode: Union[str, Path], git_dir: Union[str, Path], skip_current_tag:bool = False):
+def get_version(mode: Union[str, Path], git_dir: Union[str, Path], skip_current_tag: bool = False,
+                release_file: Union[str, Path] = ".release"):
     start_commit = "HEAD"
     continue_commit = start_commit
     post_commits = 0
@@ -56,15 +74,19 @@ def get_version(mode: Union[str, Path], git_dir: Union[str, Path], skip_current_
                     major, minor, patch, rc = LLVM_VERSION_RE.findall(tag)[0]
 
                 if mode == "python":
-                    release = 0
-                    if exists(".release"):
-                        with open(".release", "rt") as f:
-                            release = int(f.read().strip() or 0)
+                    release = read_release(release_file)
+                    # The counter is a 4th component of the release segment, not a
+                    # local version (`+N`): PyPI MUST reject local versions. See
+                    # read_release above and CLAUDE.md, "Versioning".
                     return (f"{major}.{minor}.{patch}"
+                            f"{f'.{release}' if release else ''}"
                             f"{f'{rc}' if rc else ''}"
                             f"{f'.post{post_commits}' if post_commits else ''}"
-                            f"{f'+{release}' if release else ''}"
                             )
+                elif mode == "base":
+                    # X.Y.Z alone: the scope of the .release counter. A change here
+                    # is what requires .release to be reset back to 0.
+                    return f"{major}.{minor}.{patch}"
                 elif mode == "cmake":
                     return (f"-DLLVM_VERSION_MAJOR={major} "
                             f"-DLLVM_VERSION_MINOR={minor} "

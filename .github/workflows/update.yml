@@ -56,6 +56,7 @@ jobs:
           git submodule update --init --force --recursive
           CURRENT_VERSION="$(./version_extractor.py -m python -d llvm-project)"
           CURRENT_TAG="$(./version_extractor.py -m tag -d llvm-project)"
+          CURRENT_BASE="$(./version_extractor.py -m base -d llvm-project)"
           IS_CURRENT_TAG="$(./version_extractor.py -m is-tag -d llvm-project)"
           if [ -n "IS_CURRENT_TAG" ]; then
               if [ -z "$(grep "^v$(./version_extractor.py -d llvm-project -m python)$" <(git tag -l))" ]; then
@@ -67,7 +68,6 @@ jobs:
           fi
 
           git submodule update --init --remote --recursive
-          NEW_VERSION="$(./version_extractor.py -m python -d llvm-project)"
           NEW_TAG="$(./version_extractor.py -m tag -d llvm-project)"
 
           if [ "$CURRENT_TAG" != "$NEW_TAG" ]; then
@@ -75,8 +75,20 @@ jobs:
               pushd llvm-project
               git checkout "$NEW_TAG"
               popd
-              NEW_VERSION="$(./version_extractor.py -m python -d llvm-project)"
           fi
+
+          # The .release counter is the 4th component of the release segment, so it
+          # outranks .postN and is only valid for one LLVM base version. Bumping
+          # X.Y.Z retires it: leaving it set would make the next upstream commit
+          # sort below the previous release. Reset it here, where the bump happens.
+          # Dropping an rc suffix leaves X.Y.Z alone and correctly does NOT reset.
+          NEW_BASE="$(./version_extractor.py -m base -d llvm-project)"
+          if [ "$CURRENT_BASE" != "$NEW_BASE" ]; then
+              echo "## LLVM base version $CURRENT_BASE -> $NEW_BASE: resetting .release to 0" >> $GITHUB_STEP_SUMMARY
+              printf '0' > .release
+          fi
+
+          NEW_VERSION="$(./version_extractor.py -m python -d llvm-project)"
 
           if [ "$CURRENT_VERSION" != "$NEW_VERSION" ]; then
               echo "# Current version: $CURRENT_VERSION" >> $GITHUB_STEP_SUMMARY
