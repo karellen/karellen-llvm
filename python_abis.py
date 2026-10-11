@@ -11,7 +11,7 @@ import sys
 
 # CPython 3.x minor versions to build per-ABI LLDB wheels for.
 # Bump this list as the manylinux build image gains or drops versions.
-PYTHON_ABI_MINORS = [9, 10, 11, 12, 13, 14]
+PYTHON_ABI_MINORS = [11, 12, 13, 14, 15]
 
 # Default interpreter for the one-time stage-2 build and the py3-none wheels
 # ("314" => CPython 3.14; must be one of PYTHON_ABI_MINORS).

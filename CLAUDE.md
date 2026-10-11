@@ -90,7 +90,7 @@ build system at the top level. The build is orchestrated by custom scripts:
 
 `ghcr.io/karellen/manylinux_2_28_x86_64:latest` with:
 - ccache 4.13.6, cmake 4.3.3, ninja 1.13.2 (installed at container startup)
-- Python 3.9–3.14 via manylinux `/opt/python/cp3{9..14}-*-shared` directories
+- Python 3.11–3.15 via manylinux `/opt/python/cp3{11..15}-*-shared` directories
 
 ### CMake Configuration (`twostage.cmake`)
 
